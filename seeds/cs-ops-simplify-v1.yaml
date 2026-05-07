@@ -1,0 +1,77 @@
+goal: |
+  Simplify and restructure cs-ops-api/src/ for public deployment readiness.
+
+  Apply module-first restructuring following these principles:
+  1. 통합 스크립트 (pipeline.ts): decompose into single-responsibility units — router, notifier, run-log-builder
+  2. 단일 스크립트 (classifier, draft): enforce common/unit/template layer ordering within each file
+  3. 유틸 (lib/): clean export boundaries — extract admin-client, deduplicate notion cast pattern, reorder openclaw-client layers
+  4. 테스트: update import paths alongside code changes, add router unit tests
+
+  Functional FlowResult pattern must be preserved throughout. No classes. No new dependencies.
+
+constraints:
+  # --- Architecture Principles ---
+  - "1역할 (Single Responsibility): every file and exported function has exactly one job"
+  - "Export boundary: internal helpers must NOT be exported. Only public API functions are exported"
+  - "Functional style only: no class keyword. FlowResult<T> pattern must be preserved"
+  - "No new npm dependencies allowed"
+  - "Minimize new file count: create new files only where clearly required by role separation"
+
+  # --- pipeline.ts decomposition ---
+  - "Create cs-ops-api/src/pipeline/run-log-builder.ts — exports make_failed_run(run_id, ticket_id, phase, steps, reason, evidence_ids?): AutomationRunLog"
+  - "Create cs-ops-api/src/pipeline/router.ts — exports route_by_risk(decision: RiskDecision): 'auto' | 'review' | 'escalate' as a pure function (no async, no side effects)"
+  - "Create cs-ops-api/src/pipeline/notifier.ts — exports notify_auto(draft, ticket_id), notify_review(bundle, matches, draft), notify_escalate(bundle, matches, draft, reason). Moves post_slack_review_block and send_auto_draft from pipeline.ts"
+  - "pipeline.ts becomes a thin orchestrator: imports from pipeline/ submodules, contains only step sequencing and final log assembly"
+  - "pipeline.ts must have zero direct AutomationRunLog literal object construction for failure cases — all replaced by make_failed_run()"
+
+  # --- classifier/ticket.ts ---
+  - "TICKET_SCHEMA at top of file is the single source of truth for all enum values"
+  - "VALID_INTENTS, VALID_REASONS, VALID_STATES, VALID_RISKS, VALID_EVIDENCE arrays must be derived from TICKET_SCHEMA enums, not re-declared separately"
+  - "File layer order: TICKET_SCHEMA (template) → safe_parse_ticket (unit) → normalize_ticket (integration)"
+  - "External API of normalize_ticket must remain identical — no signature changes"
+
+  # --- draft/generator.ts ---
+  - "Extract lang_prefix selection into a named pure function: format_lang_prefix(lang: string | undefined): string"
+  - "format_lang_prefix must NOT be exported — internal template helper only"
+  - "File layer order: format_lang_prefix (common/template) → build_evidence_snippets (template) → collect_evidence_ids (unit) → generate_draft (integration)"
+
+  # --- lib/admin-client.ts (new) ---
+  - "Create cs-ops-api/src/lib/admin-client.ts"
+  - "Exports: fetch_order_status(order_id: string): Promise<OrderStatus | undefined>, fetch_customer(email: string): Promise<CustomerInfo | undefined>, fetch_refund_eligibility(order_id: string): Promise<RefundEligibility | undefined>"
+  - "ADMIN_BASE constant (process.env.MOCK_ADMIN_API_URL ?? 'http://localhost:3099') lives in admin-client.ts only"
+  - "evidence/retriever.ts imports from lib/admin-client.ts — remove the 3 fetch functions from retriever.ts"
+
+  # --- lib/notion-client.ts ---
+  - "Extract internal helper: query_notion_db(notion, db_id, filter): Promise<DbQueryResponse> — NOT exported"
+  - "Replace both occurrences of (notion as unknown as { request: ... }).request({ ... }) with calls to query_notion_db()"
+  - "Public exports remain unchanged: search_faq, search_policies, update_automation_run_reviewer, write_automation_run, read_page, update_page_status"
+
+  # --- lib/openclaw-client.ts ---
+  - "Reorder file sections: SYSTEM_PROMPTS first (template layer), then parse_cs_bot_response (parser), then call_cs_bot (client)"
+  - "No logic changes — reorder only"
+  - "parse_cs_bot_response must remain unexported (internal)"
+
+  # --- Tests ---
+  - "Create cs-ops-api/src/pipeline/router.spec.ts — unit tests for route_by_risk pure function, covering all 8 rule branches"
+  - "Update cs-ops-api/src/evidence/retriever.spec.ts — mock paths updated from retriever-internal fetch to lib/admin-client"
+  - "All existing 52 tests must continue to pass"
+  - "Do NOT modify test assertions — only update import/mock paths where needed by structural changes"
+
+acceptance_criteria:
+  - "cd cs-ops-api && npm run build exits 0 (tsc --noEmit passes)"
+  - "cd cs-ops-api && npx jest exits 0 with all original 52 tests passing plus new router.spec tests"
+  - "ts-node -r tsconfig-paths/register src/pipeline.ts exits without import errors (runtime path alias check)"
+  - "grep -c 'AutomationRunLog = {' cs-ops-api/src/pipeline.ts outputs 0 — all failure-path log construction uses make_failed_run()"
+  - "grep -c 'fetch_order_status\\|fetch_customer\\|fetch_refund_eligibility' cs-ops-api/src/evidence/retriever.ts outputs 0"
+  - "grep -c 'as unknown as' cs-ops-api/src/lib/notion-client.ts outputs 1 or less — cast consolidated into single query_notion_db helper"
+
+metadata:
+  seed_id: "cs_ops_simplify_v1"
+  created: "2026-05-11"
+  scope: "cs-ops-api/src/"
+  ambiguity_score: 0.1
+  design_doc: "docs/superpowers/specs/2026-05-11-cs-ops-simplify-design.md"
+  execution_notes: |
+    Read cs-ops-api/src/pipeline.ts, types.ts, classifier/ticket.ts, draft/generator.ts,
+    evidence/retriever.ts, lib/notion-client.ts, lib/openclaw-client.ts before making changes.
+    Run acceptance_criteria checks after each major file change, not just at the end.

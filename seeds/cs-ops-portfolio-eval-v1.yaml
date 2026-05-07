@@ -1,0 +1,51 @@
+goal: |
+  Evaluate that cs-ops-api is safe for public GitHub portfolio release.
+  This is a verification-only seed — it runs checks, reports results, and commits
+  a verification report. It does NOT modify source code.
+
+  Checks:
+  1. No personal absolute paths (/Users/<username>/) in any tracked file
+  2. No live tokens (xoxb-, ntn_, AIzaSy) in any tracked file
+  3. .DS_Store not tracked in git
+  4. docs/superpowers/ not tracked in git
+  5. cs-ops-api unit tests still pass (127 tests)
+  6. TypeScript compiles without errors
+
+constraints:
+  - "Working directory: <project-root>"
+  - "Read-only mode: do not modify any source files — report findings only"
+  - "Write a verification report to: docs/portfolio/public-readiness-report.md"
+  - "Report format: markdown table with Check | Status (PASS/FAIL) | Details"
+  - "If any check FAILs, list remediation steps at the bottom of the report"
+
+acceptance_criteria:
+  - "git ls-files | xargs grep -lE '/Users/[a-zA-Z]' 2>/dev/null | grep -v node_modules returns empty (0 files with personal paths)"
+  - "git ls-files | xargs grep -lE 'xoxb-[0-9]{10,}|ntn_[a-zA-Z0-9]{40,}' 2>/dev/null returns empty (0 files with live tokens)"
+  - "git ls-files .DS_Store | wc -l equals 0"
+  - "git ls-files docs/superpowers/ | wc -l equals 0"
+  - "cd cs-ops-api && npx jest --no-coverage exits 0 with 127 tests passed"
+  - "cd cs-ops-api && npx tsc --noEmit exits 0"
+  - "docs/portfolio/public-readiness-report.md created with all rows showing PASS"
+
+ontology_schema:
+  name: "PortfolioReadinessEval"
+  description: "Verification suite for public GitHub release of cs-ops-api"
+  fields:
+    - name: "personal_path_clean"
+      field_type: "boolean"
+      description: "No /Users/<name>/ in tracked files"
+    - name: "token_clean"
+      field_type: "boolean"
+      description: "No live API tokens in tracked files"
+    - name: "ds_store_untracked"
+      field_type: "boolean"
+      description: ".DS_Store removed from git index"
+    - name: "tests_pass"
+      field_type: "boolean"
+      description: "127 unit tests pass after cleanup"
+
+metadata:
+  seed_id: "cs_ops_portfolio_eval_v1"
+  ambiguity_score: 0.04
+  version: "1.0.0"
+  prd_ref: "docs/portfolio/cs-ops-harness.md"

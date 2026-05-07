@@ -1,0 +1,83 @@
+goal: |
+  CS Ops Automation Harness — P1 quality improvements.
+  Add three independent features to the existing pipeline in cs-ops-api/src/.
+
+  1. Language detection: detect customer message language (ko/en/other) and instruct
+     the draft generator to respond in the same language.
+
+  2. Reviewer feedback loop: when a CS agent takes action via Slack review buttons,
+     update the original Automation_Run Notion page with the reviewer's decision.
+
+  3. Policy matcher structured query: replace notion.search() with notion.databases.query()
+     in notion-client.ts for more accurate, DB-scoped evidence retrieval.
+
+  All code must follow the FlowResult<T> functional pattern established in the codebase.
+  No classes. Pure functions only.
+
+constraints:
+  - "Working directory for git commands: <project-root>"
+  - "All source files are in: cs-ops-api/src/ (relative to working directory)"
+  - "TypeScript strict mode — npx tsc --noEmit must exit 0 (run from cs-ops-api/ directory)"
+  - "Jest v30 test runner — run with: cd cs-ops-api && npx jest --no-coverage"
+  - "FlowResult<T> = {ok:true;value:T;trace:TraceEntry[]} | {ok:false;error:string;step:string;trace:TraceEntry[]}"
+  - "No new npm packages unless absolutely necessary — check cs-ops-api/package.json first"
+  - "All 84 existing tests must continue to pass"
+  - "Commit each AC separately with conventional commit format + git trailers"
+
+  # AC1 — Language Detection
+  - "Create src/lib/language.ts with exported detect_language(message: string): 'ko' | 'en' | 'other'"
+  - "Korean detection: count chars in Unicode ranges \\uAC00-\\uD7A3 (가-힣), \\u3131-\\u318E (ㄱ-ㅎ), \\u314F-\\u3163 (ㅏ-ㅣ). If korean_chars / non_whitespace_chars >= 0.10 → 'ko'"
+  - "English detection: if ascii_letter_chars / non_whitespace_chars >= 0.60 → 'en'"
+  - "Otherwise: 'other'. Empty string → 'other'"
+  - "Add language?: 'ko' | 'en' | 'other' to Ticket interface in src/types.ts"
+  - "In normalize_ticket() in src/classifier/ticket.ts: after safe_parse_ticket, set ticket.language = detect_language(message)"
+  - "In generate_draft() in src/draft/generator.ts: prepend language instruction to prompt — 'ko' → '반드시 한국어로 응답하세요.\\n', 'en' → 'Respond in English.\\n', other → no prefix"
+  - "Create src/lib/language.spec.ts with 4+ tests covering Korean, English, mixed, and empty input"
+
+  # AC2 — Reviewer Feedback Loop
+  - "Add update_automation_run_reviewer(run_id: string, reviewer_action: string, reviewer_id: string): Promise<void> to src/lib/notion-client.ts"
+  - "update_automation_run_reviewer: query Automation_Runs DB (NOTION_AUTOMATION_RUNS_DB_ID) for page where run_id property matches. If found, update reviewer_action (select) and add reviewer_id (rich_text). If not found or DB not set → warn and return"
+  - "Add reviewer_id?: string to AutomationRunLog interface in src/types.ts"
+  - "Update handle_review_action() in src/slack/actions.ts to call update_automation_run_reviewer(ticket_id, action_id, reviewer_id) after processing action"
+  - "If reviewer_id is not in payload, use 'unknown' as default"
+  - "Add reviewer_id to write_automation_run params interface in notion-client.ts"
+  - "Add or update tests in src/slack/actions.spec.ts for handle_review_action"
+
+  # AC3 — Policy Matcher Structured Query
+  - "In src/lib/notion-client.ts search_db(): replace notion.search() with notion.databases.query()"
+  - "Use filter: { property: source === 'faq' ? 'Question' : 'Title', title: { contains: query.slice(0, 100) } }"
+  - "Remove the parent.database_id filtering logic (databases.query already scopes to the DB)"
+  - "Wrap databases.query in try/catch — return [] on any API error"
+  - "Keep search_faq() and search_policies() exported signatures unchanged"
+
+acceptance_criteria:
+  - "detect_language exported from src/lib/language.ts; returns 'ko' for '안녕하세요 주문 환불해주세요'"
+  - "src/lib/language.spec.ts has 4+ tests, all pass: npx jest 'src/lib/language' exits 0"
+  - "Ticket.language field set by normalize_ticket — src/classifier/ticket.ts populates it"
+  - "generate_draft prompt includes language prefix when ticket.language is 'ko' or 'en'"
+  - "update_automation_run_reviewer exported from src/lib/notion-client.ts"
+  - "handle_review_action in src/slack/actions.ts calls update_automation_run_reviewer"
+  - "reviewer_id field present in AutomationRunLog interface (src/types.ts)"
+  - "src/lib/notion-client.ts search_db uses notion.databases.query (not notion.search)"
+  - "cd cs-ops-api && npx tsc --noEmit exits 0"
+  - "cd cs-ops-api && npx jest --no-coverage: all tests pass (85+ total)"
+
+ontology_schema:
+  name: "LanguageAwareTicket"
+  description: "CS ticket with language detection for multilingual response support"
+  fields:
+    - name: "language"
+      field_type: "enum"
+      description: "Detected language of customer message: ko|en|other"
+    - name: "reviewer_id"
+      field_type: "string"
+      description: "Slack user ID of the CS agent who reviewed the automation run"
+    - name: "reviewer_action"
+      field_type: "enum"
+      description: "Action taken by reviewer: approve|escalate|hold|revise|evidence"
+
+metadata:
+  seed_id: "cs_ops_p1_improvements_v1"
+  ambiguity_score: 0.08
+  version: "1.0.0"
+  prd_ref: "docs/superpowers/plans/2026-05-10-cs-ops-safety-quality.md"

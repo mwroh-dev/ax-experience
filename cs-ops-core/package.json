@@ -1,0 +1,36 @@
+{
+  "name": "@cs-ops-core",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node src/pipeline.ts",
+    "build": "tsc --noEmit",
+    "test": "jest",
+    "mock-admin": "ts-node src/mock-admin/start.ts"
+  },
+  "dependencies": {
+    "@notionhq/client": "^5.20.0",
+    "@slack/bolt": "^3.22.0",
+    "@slack/web-api": "^7.8.0",
+    "better-sqlite3": "^12.9.0",
+    "express": "^4.21.2",
+    "ts-pattern": "^5.9.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^22.15.3",
+    "@types/supertest": "^6.0.0",
+    "@types/uuid": "^10.0.0",
+    "dotenv": "^17.4.2",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.8.3"
+  }
+}

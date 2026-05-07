@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "..",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "baseUrl": ".",
+    "paths": {
+      "@slack/bolt": ["./node_modules/@slack/bolt"],
+      "@slack/web-api": ["./node_modules/@slack/web-api"],
+      "@slack/*": ["../slack/src/*"],
+      "@notion/*": ["../notion/src/*"],
+      "@api/*": ["./src/*"],
+      "@cs-ops-core/*": ["../cs-ops-core/src/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "../slack/src/**/*",
+    "../notion/src/**/*",
+    "../cs-ops-core/src/**/*"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

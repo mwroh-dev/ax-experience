@@ -1,0 +1,120 @@
+goal: |
+  P0 foundation: Install zod@^3.23 and ts-pattern@^5.4 in cs-ops-core, then create
+  two new files — cs-ops-core/src/lib/result.ts (Result/TaskResult types + ok/err/task_ok/task_err helpers)
+  and cs-ops-core/src/lib/errors.ts (ParseError/LLMError/NetworkError/ValidationError union + constructors).
+  Then update tsconfig.base.json to add noImplicitReturns and noFallthroughCasesInSwitch.
+  Finally add P1: apply Zod safeParse at all 5 LLM parse boundaries.
+
+constraints:
+  - "Working directory: ax-experience repo root"
+  - "NEVER use .parse() — always .safeParse(). .parse() throws; .safeParse() returns a discriminated union result."
+  - "NEVER use .otherwise() in ts-pattern — always .exhaustive(). This gives compile-time exhaustiveness checking."
+  - "Do NOT add Zod to internal TypeScript-to-TypeScript calls where the value is already a typed variable."
+
+  # P0-1: Install packages
+  - "Run: cd cs-ops-core && npm install zod ts-pattern --save"
+  - "Verify packages installed: node -e \"require('zod'); require('ts-pattern'); console.log('ok')\""
+
+  # P0-2: cs-ops-core/src/lib/result.ts — create this file with exactly this content:
+  - |
+    Create cs-ops-core/src/lib/result.ts:
+    import type { DomainError } from './errors';
+    import type { TraceEntry } from '../types';
+    export type Result<T, E = DomainError> =
+      | { readonly ok: true; readonly value: T }
+      | { readonly ok: false; readonly error: E };
+    export type TaskResult<T, E = DomainError> =
+      | { ok: true; value: T; trace: TraceEntry[] }
+      | { ok: false; error: E; trace: TraceEntry[] };
+    export const ok = <T>(v: T): Result<T, never> => ({ ok: true as const, value: v });
+    export const err = <E>(e: E): Result<never, E> => ({ ok: false as const, error: e });
+    export const task_ok = <T>(v: T, t: TraceEntry[]): TaskResult<T, never> => ({ ok: true as const, value: v, trace: t });
+    export const task_err = <E>(e: E, t: TraceEntry[]): TaskResult<never, E> => ({ ok: false as const, error: e, trace: t });
+
+  # P0-3: cs-ops-core/src/lib/errors.ts — create this file with exactly this content:
+  - |
+    Create cs-ops-core/src/lib/errors.ts:
+    export type ParseError      = { tag: 'parse_error';      message: string; raw?: string };
+    export type LLMError        = { tag: 'llm_error';        message: string; exit_code?: number };
+    export type NetworkError    = { tag: 'network_error';    message: string; url?: string };
+    export type ValidationError = { tag: 'validation_error'; issues: string[] };
+    export type DomainError = ParseError | LLMError | NetworkError | ValidationError;
+    export const parse_error      = (msg: string, raw?: string): ParseError      => ({ tag: 'parse_error',      message: msg, raw });
+    export const llm_error        = (msg: string, code?: number): LLMError       => ({ tag: 'llm_error',        message: msg, exit_code: code });
+    export const network_error    = (msg: string, url?: string): NetworkError    => ({ tag: 'network_error',    message: msg, url });
+    export const validation_error = (issues: string[]): ValidationError          => ({ tag: 'validation_error', issues });
+
+  # P0-4: tsconfig.base.json — add two compiler options
+  - "Add to tsconfig.base.json compilerOptions: \"noImplicitReturns\": true and \"noFallthroughCasesInSwitch\": true"
+
+  # P1-1: cs-ops-core/src/classifier/ticket.ts
+  - |
+    In cs-ops-core/src/classifier/ticket.ts: replace
+      JSON.parse(json_match[0]) as Record<string, unknown>
+    with a TicketSchema.safeParse() call. Define TicketSchema with z.object() covering
+    all fields in the Ticket interface. On safeParse failure, throw or return a safe default
+    consistent with the existing error handling pattern in the file.
+
+  # P1-2: cs-ops-core/src/lib/openclaw-client.ts
+  - |
+    In cs-ops-core/src/lib/openclaw-client.ts: replace regex-based extraction of
+    DRAFT:, CONFIDENCE:, NEEDS_MORE_INFO: lines with a CsBotResponseSchema.safeParse()
+    approach. Define CsBotResponseSchema with z.object({ draft: z.string(), confidence: z.string(), needs_more_info: z.string() }).
+    On safeParse failure, propagate as FlowResult error (ok: false).
+
+  # P1-3: api/src/tools/openclaw-client.ts
+  - |
+    In api/src/tools/openclaw-client.ts: apply the same CsBotResponseSchema.safeParse()
+    replacement for the duplicate regex extraction of DRAFT:, CONFIDENCE:, NEEDS_MORE_INFO:.
+    Reuse the same schema shape as in cs-ops-core/src/lib/openclaw-client.ts.
+
+  # P1-4: api/src/tools/draft-eval.ts
+  - |
+    In api/src/tools/draft-eval.ts: replace
+      response.json() as any
+    and the subsequent regex extraction with a DraftEvalResponseSchema.safeParse() call.
+    Define DraftEvalResponseSchema with z.object() matching all fields that draft-eval response uses.
+
+  # P1-5: cs-ops-core/src/lib/llm-judge.ts
+  - |
+    In cs-ops-core/src/lib/llm-judge.ts: replace
+      JSON.parse(raw) as JudgeOutput
+    with JudgeOutputSchema.safeParse(JSON.parse(raw)).
+    Define JudgeOutputSchema with z.object() matching the JudgeOutput interface.
+    On safeParse failure, propagate the error (do not silently swallow it).
+
+  # Verification after each file
+  - "After each file change, run: npx tsc --noEmit 2>&1 | grep 'error TS' | wc -l — result must be 0 before proceeding"
+
+acceptance_criteria:
+  - "cs-ops-core/src/lib/result.ts exists and exports: Result, TaskResult, ok, err, task_ok, task_err"
+  - "cs-ops-core/src/lib/errors.ts exists and exports: ParseError, LLMError, NetworkError, ValidationError, DomainError, parse_error, llm_error, network_error, validation_error"
+  - "cs-ops-core/node_modules/zod exists (zod installed)"
+  - "cs-ops-core/node_modules/ts-pattern exists (ts-pattern installed)"
+  - "tsconfig.base.json contains noImplicitReturns: true"
+  - "tsconfig.base.json contains noFallthroughCasesInSwitch: true"
+  - "cs-ops-core/src/classifier/ticket.ts uses TicketSchema.safeParse() — no JSON.parse(...) as Record<string, unknown>"
+  - "cs-ops-core/src/lib/openclaw-client.ts uses CsBotResponseSchema.safeParse() — no DRAFT:/CONFIDENCE: regex extraction"
+  - "api/src/tools/openclaw-client.ts uses CsBotResponseSchema.safeParse() — no DRAFT:/CONFIDENCE: regex extraction"
+  - "api/src/tools/draft-eval.ts uses DraftEvalResponseSchema.safeParse() — no 'response.json() as any'"
+  - "cs-ops-core/src/lib/llm-judge.ts uses JudgeOutputSchema.safeParse() — no 'JSON.parse(raw) as JudgeOutput'"
+  - "npx tsc --noEmit from repo root exits with 0 errors"
+  - "npx jest --no-coverage from repo root shows 0 failed tests"
+
+ontology_schema:
+  name: "ZodTsPatternMigration"
+  description: "Foundation types and LLM parse boundary hardening with Zod + ts-pattern"
+  fields:
+    - name: "result_ts"
+      field_type: "file"
+      description: "cs-ops-core/src/lib/result.ts — Result/TaskResult discriminated union + constructors"
+    - name: "errors_ts"
+      field_type: "file"
+      description: "cs-ops-core/src/lib/errors.ts — DomainError union (ParseError | LLMError | NetworkError | ValidationError)"
+    - name: "zod_schemas"
+      field_type: "schema"
+      description: "TicketSchema, CsBotResponseSchema, DraftEvalResponseSchema, JudgeOutputSchema defined with z.object()"
+
+metadata:
+  seed_id: "zod_ts_pattern_p0_p1"
+  ambiguity_score: 0.05

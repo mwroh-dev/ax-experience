@@ -1,0 +1,50 @@
+goal: "Add GET /api/metrics/latency endpoint to the NestJS backend that reads from the automation_runs SQLite table and returns P50/P90/P99 latency percentiles grouped by run_type, plus failure rate per type"
+
+constraints:
+  - "NestJS 11 + better-sqlite3 — do not add new npm packages"
+  - "Follow the thin-controller pattern in api/src/cases/cases.controller.ts: controller calls functions imported from a store module"
+  - "DB access: import get_db from api/src/db/sqlite.ts (returns a better-sqlite3 Database instance)"
+  - "Query only the automation_runs table (columns: id, ticket_id, run_type, status, latency_ms, output_summary, created_at)"
+  - "Accept ?period=24h|7d|30d query param — default 24h"
+  - "Compute P50/P90/P99 in TypeScript (SQLite has no percentile function) by sorting latency_ms values"
+  - "failure_rate = failed_count / total_count for each run_type"
+  - "Register a new MetricsModule in api/src/app.module.ts"
+  - "New files go in api/src/metrics/"
+
+acceptance_criteria:
+  - "GET /api/metrics/latency returns HTTP 200 with JSON array"
+  - "Each element has shape: {run_type: string, count: number, failed: number, failure_rate: number, p50: number, p90: number, p99: number}"
+  - "GET /api/metrics/latency?period=7d returns data from the last 7 days"
+  - "Empty result (no automation_runs yet) returns [] not an error"
+  - "cd api && npx tsc --noEmit exits 0"
+  - "curl http://localhost:3100/api/metrics/latency returns valid JSON with the correct shape"
+
+ontology_schema:
+  name: "LatencyMetrics"
+  description: "Per-run-type latency statistics from the automation pipeline"
+  fields:
+    - name: "run_type"
+      field_type: "string"
+      description: "Automation run type: classify, retrieve_evidence, draft_reply, eval_draft, etc."
+    - name: "count"
+      field_type: "number"
+      description: "Total runs in selected period"
+    - name: "failed"
+      field_type: "number"
+      description: "Failed runs in selected period"
+    - name: "failure_rate"
+      field_type: "number"
+      description: "failed / count, range 0.0–1.0"
+    - name: "p50"
+      field_type: "number"
+      description: "50th percentile latency_ms of successful runs"
+    - name: "p90"
+      field_type: "number"
+      description: "90th percentile latency_ms of successful runs"
+    - name: "p99"
+      field_type: "number"
+      description: "99th percentile latency_ms of successful runs"
+
+metadata:
+  seed_id: "ops_latency_001"
+  ambiguity_score: 0.08

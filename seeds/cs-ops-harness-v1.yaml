@@ -1,0 +1,127 @@
+goal: |
+  Build a CS Ops Automation Harness: a TypeScript pipeline that classifies incoming Slack CS messages,
+  retrieves evidence from Notion + a mock Admin API, matches PolicyRules, generates a response draft,
+  gates risky cases to a Slack interactive review block, and logs every run to Notion AutomationRuns DB.
+
+  All code must follow the functional FlowResult pattern established in api/src/pipeline/index.ts.
+  No classes. Every step is a pure function. Side effects only at boundary steps.
+
+constraints:
+  # Architecture
+  - "All new files go in cs-ops-api/src/ (new package separate from api/). Create cs-ops-api/package.json with name @cs-ops-api, tsconfig.json extending ../tsconfig.base.json"
+  - "Functional style only: no class keyword. Use FlowResult<T> = {ok:true;value:T;trace:TraceEntry[]} | {ok:false;error:string;step:string;trace:TraceEntry[]} from api/src/pipeline/index.ts"
+  - "Each pipeline step is a pure function: (ctx: Ctx) => Promise<Ctx> with no hidden state"
+  - "Import pipe, flat_map, recover from api/src/pipeline/monad.ts"
+
+  # Ticket Classification
+  - "cs-ops-api/src/classifier/ticket.ts — exports normalize_ticket(message: string): Promise<FlowResult<Ticket>>"
+  - "Ticket type must include: ticket_id(uuid), customer_intent, issue_reason, order_state, risk_level, evidence_required[], human_review_required, recommended_action"
+  - "customer_intent enum: refund_request|exchange_request|delivery_inquiry|subscription_cancel|privacy_request|product_defect_report|general_inquiry|complaint"
+  - "risk_level enum: low|medium|high|critical"
+  - "Use openclaw-client.ts (already at api/src/tools/openclaw-client.ts) for classification via call_cs_bot — pass message and schema"
+
+  # Evidence Retrieval
+  - "cs-ops-api/src/evidence/retriever.ts — exports retrieve_evidence(ticket: Ticket): Promise<FlowResult<EvidenceBundle>>"
+  - "EvidenceBundle includes: ticket, order?, customer?, refund_eligibility?, faq_matches[], policy_matches[], legal_references[]"
+  - "Notion retrieval: reuse api/src/tools/notion-client.ts — search FAQ (NOTION_FAQ_DB_ID), Policies (NOTION_POLICIES_DB_ID)"
+  - "Admin API retrieval: call mock Admin API at process.env.MOCK_ADMIN_API_URL ?? 'http://localhost:3099'"
+  - "Admin API endpoints: GET /admin/orders/:orderId/status, GET /admin/customers/lookup?email=, GET /admin/refunds/eligibility?orderId="
+  - "If order_state = 'no_order' or customer_intent = 'privacy_request': skip Admin API calls"
+
+  # Mock Admin API
+  - "cs-ops-api/src/mock-admin/server.ts — Express server (not NestJS) on port 3099"
+  - "Routes: GET /admin/orders/:orderId/status → {orderId, status, carrier, trackingNumber, estimatedDelivery}, GET /admin/customers/lookup?email= → {customerId, email_masked, orderCount, firstOrderDate}, GET /admin/refunds/eligibility?orderId= → {eligible, reason, daysReturn, withinWindow}"
+  - "Return deterministic mock data based on orderId/email (no real DB). Use a static Map of mock records"
+  - "cs-ops-api/src/mock-admin/start.ts — entrypoint: npx ts-node cs-ops-api/src/mock-admin/start.ts"
+
+  # Policy Matching
+  - "cs-ops-api/src/policy/matcher.ts — exports match_policies(bundle: EvidenceBundle): PolicyMatch[]"
+  - "PolicyMatch: {rule_id, rule_label, action:'auto_respond'|'human_review'|'escalate', confidence: number, evidence_used: string[]}"
+  - "Pure function — no async, no side effects. Takes evidence bundle, returns matches"
+  - "If no policy matches → return [{rule_id:'NO_MATCH', action:'human_review', confidence:0, evidence_used:[]}]"
+
+  # Risk Gate
+  - "cs-ops-api/src/gate/risk.ts — exports apply_risk_gate(ticket: Ticket, matches: PolicyMatch[]): RiskDecision"
+  - "RiskDecision: {action:'auto'|'review'|'escalate', reason: string}"
+  - "HARD RULES (cannot be overridden): customer_intent=privacy_request → escalate. risk_level=critical → escalate. matches empty or NO_MATCH → review. risk_level=high → review. refund denial possible (action includes 'deny') → review"
+  - "Pure function — no async"
+
+  # Draft Generation
+  - "cs-ops-api/src/draft/generator.ts — exports generate_draft(bundle: EvidenceBundle, matches: PolicyMatch[]): Promise<FlowResult<Draft>>"
+  - "Draft: {text: string, evidence_ids: string[], template_used?: string}"
+  - "Use openclaw-client.ts call_cs_bot with mode:'answer_draft'. Include evidence summary in prompt"
+  - "Draft MUST include evidence_ids in metadata (referenced policy_rule_ids + faq_ids used)"
+
+  # Slack Review Block
+  - "cs-ops-api/src/slack/review-block.ts — exports build_review_block(ticket, bundle, draft): KnownBlock[]"
+  - "Block must show: ticket_id, risk_level badge, customer_intent, top 3 evidence items, draft text"
+  - "5 action buttons: cs_review_approve, cs_review_revise, cs_review_hold, cs_review_escalate, cs_review_evidence"
+  - "cs-ops-api/src/slack/actions.ts — exports handle_review_action(action_id, payload): Promise<void>"
+  - "Approve: post draft to voc-log channel (SLACK_VOC_LOG_CHANNEL_ID), update AutomationRun in Notion"
+  - "Escalate: post to SLACK_CS_MANAGER_CHANNEL_ID with escalation reason"
+  - "Hold/Revise/Evidence: update AutomationRun reviewer_action field, post thread reply"
+
+  # AutomationRun Logging
+  - "cs-ops-api/src/logging/automation-run.ts — exports log_automation_run(run: AutomationRunLog): Promise<void>"
+  - "AutomationRunLog: {run_id, ticket_id, phase, steps[], risk_decision, reviewer_action?, evidence_ids[], final_answer?, eval_score?}"
+  - "Write to Notion DB at process.env.NOTION_AUTOMATION_RUNS_DB_ID"
+  - "MUST mask PII before logging: replace email patterns with a***@domain.com, phone patterns with ***-****"
+  - "Use @notionhq/client (already installed in api/)"
+
+  # Pipeline Assembly
+  - "cs-ops-api/src/pipeline.ts — exports process_cs_message(message: string, slack_ts: string): Promise<FlowResult<AutomationRunLog>>"
+  - "Steps in order: normalize_ticket → retrieve_evidence → match_policies → generate_draft → apply_risk_gate → (if review/escalate: post_slack_review_block) → (if auto: send_draft) → log_automation_run"
+  - "Use pipe() from monad.ts to compose steps"
+  - "Every step failure → short-circuit via FlowResult pattern, still call log_automation_run"
+
+  # Tests
+  - "cs-ops-api/src/classifier/ticket.spec.ts — unit test normalize_ticket with 4 sample messages (refund, delivery, privacy, general)"
+  - "cs-ops-api/src/gate/risk.spec.ts — unit test apply_risk_gate: privacy_request→escalate, high_risk→review, low+policy_match→auto"
+  - "cs-ops-api/src/policy/matcher.spec.ts — unit test match_policies: known refund case, unknown case returns NO_MATCH"
+  - "cs-ops-api/src/mock-admin/server.spec.ts — supertest GET /admin/orders/12345/status returns expected shape"
+
+acceptance_criteria:
+  - "cd cs-ops-api && npx tsc --noEmit exits 0"
+  - "npx jest cs-ops-api/src/gate/risk.spec.ts — apply_risk_gate with {customer_intent:'privacy_request'} returns {action:'escalate'}"
+  - "npx jest cs-ops-api/src/policy/matcher.spec.ts — empty policy list returns [{rule_id:'NO_MATCH',action:'human_review'}]"
+  - "curl http://localhost:3099/admin/orders/12345/status returns JSON with {orderId:'12345', status: string}"
+  - "curl http://localhost:3099/admin/refunds/eligibility?orderId=12345 returns JSON with {eligible: boolean}"
+  - "build_review_block returns array containing a block with action_id 'cs_review_approve'"
+  - "log_automation_run masks 'test@example.com' as 'te**@example.com' before writing to Notion"
+  - "process_cs_message with customer_intent=privacy_request produces FlowResult with risk_decision=escalate"
+  - "All tests pass: npx jest --testPathPattern='cs-ops-api' exits 0"
+
+ontology_schema:
+  name: "CSTicket"
+  description: "Normalized CS support ticket derived from Slack message"
+  fields:
+    - name: "ticket_id"
+      field_type: "string"
+      description: "UUID generated at classification time"
+    - name: "customer_intent"
+      field_type: "enum"
+      description: "refund_request|exchange_request|delivery_inquiry|subscription_cancel|privacy_request|product_defect_report|general_inquiry|complaint"
+    - name: "issue_reason"
+      field_type: "enum"
+      description: "changed_mind|defective_product|not_as_described|late_delivery|wrong_item|payment_dispute|subscription_billing|data_breach_concern|other"
+    - name: "order_state"
+      field_type: "enum"
+      description: "not_shipped|in_transit|delivered|returned|cancelled|unknown|no_order"
+    - name: "risk_level"
+      field_type: "enum"
+      description: "low|medium|high|critical"
+    - name: "evidence_required"
+      field_type: "array"
+      description: "Types of evidence needed: order_status|delivery_proof|customer_history|refund_eligibility|faq_entry|policy_rule|legal_reference"
+    - name: "human_review_required"
+      field_type: "boolean"
+      description: "true when risk_level=high|critical or no policy match"
+    - name: "recommended_action"
+      field_type: "enum"
+      description: "auto_respond|human_review|escalate|request_more_info"
+
+metadata:
+  seed_id: "cs_ops_harness_v1"
+  ambiguity_score: 0.07
+  version: "1.0.0"
+  prd_ref: "docs/superpowers/specs/2026-05-10-cs-ops-harmes-prd.md"

@@ -1,0 +1,155 @@
+# CS Ops Harness Phase Registry
+# Advance phase by setting `active: true` on the next phase and `active: false` on the current one.
+# Each lane has a priority (P0=blocking, P1=high, P2=nice-to-have) and a list of tasks.
+
+current_phase: "Phase4_Demo"
+stall_threshold_minutes: 30
+
+phases:
+  - id: "Phase0_Bootstrap"
+    name: "Bootstrap: Hermes + Ouroboros Setup"
+    active: false
+    completed: true
+    lanes:
+      - priority: P0
+        tasks:
+          - id: "install_hermes"
+            label: "Install hermes-agent CLI"
+            status: done
+            assignee: manual
+          - id: "setup_ouroboros_hermes"
+            label: "ouroboros setup --runtime claude"
+            status: done
+            assignee: manual
+          - id: "smoke_test"
+            label: "Smoke-test ouroboros run workflow with CS Ops seed"
+            status: done
+            assignee: manual
+
+  - id: "Phase1_Spec"
+    name: "Spec: CS Ops Seed + PRD"
+    active: false
+    completed: true
+    lanes:
+      - priority: P0
+        tasks:
+          - id: "ticket_ontology"
+            label: "CS Ticket Ontology — 8 fields, all enums defined"
+            status: done
+            assignee: manual
+          - id: "policy_rule_schema"
+            label: "PolicyRule schema — refund, exchange, delivery, privacy"
+            status: done
+            assignee: manual
+          - id: "risk_gate"
+            label: "RiskGate hard rules + Slack review flow design"
+            status: done
+            assignee: manual
+          - id: "seed_yaml"
+            label: "cs-ops-harness-v1.yaml seed created at project root"
+            status: done
+            assignee: manual
+      - priority: P1
+        tasks:
+          - id: "eval_rubric"
+            label: "Eval rubric 8 dimensions defined in PRD"
+            status: done
+            assignee: manual
+          - id: "prd_doc"
+            label: "PRD doc at docs/superpowers/specs/2026-05-10-cs-ops-harmes-prd.md"
+            status: done
+            assignee: manual
+
+  - id: "Phase2_Implementation"
+    name: "Implementation: ouroboros run workflow → all ACs pass"
+    active: false
+    completed: true
+    lanes:
+      - priority: P0
+        tasks:
+          - id: "classifier"
+            label: "classifier/ticket.ts — normalize_ticket, LLM classification"
+            status: done
+            assignee: ouroboros
+          - id: "evidence_retriever"
+            label: "evidence/retriever.ts — Notion FAQ/policy + mock Admin API"
+            status: done
+            assignee: ouroboros
+          - id: "policy_matcher"
+            label: "policy/matcher.ts — pure match_policies function"
+            status: done
+            assignee: ouroboros
+          - id: "risk_gate_impl"
+            label: "gate/risk.ts — apply_risk_gate hard rules"
+            status: done
+            assignee: ouroboros
+          - id: "draft_generator"
+            label: "draft/generator.ts — generate_draft via call_cs_bot"
+            status: done
+            assignee: ouroboros
+          - id: "slack_review_block"
+            label: "slack/review-block.ts — 5-button KnownBlock[] builder"
+            status: done
+            assignee: ouroboros
+          - id: "slack_actions"
+            label: "slack/actions.ts — handle_review_action dispatcher"
+            status: done
+            assignee: ouroboros
+          - id: "automation_run_logging"
+            label: "logging/automation-run.ts — PII-masked Notion write"
+            status: done
+            assignee: ouroboros
+          - id: "mock_admin_api"
+            label: "mock-admin/server.ts — Express port 3099, 3 deterministic routes"
+            status: done
+            assignee: ouroboros
+          - id: "pipeline"
+            label: "pipeline.ts — process_cs_message orchestrates full flow"
+            status: done
+            assignee: ouroboros
+          - id: "all_acs"
+            label: "All 9 ACs verified: tsc clean, 33/33 tests, curl endpoints OK"
+            status: done
+            assignee: manual
+
+  - id: "Phase3_Eval"
+    name: "Eval: Test cases + judge harness"
+    active: false
+    completed: true
+    lanes:
+      - priority: P0
+        tasks:
+          - id: "eval_cases"
+            label: "Seed 30 eval cases in Notion Eval_Cases DB"
+            status: done
+            assignee: hermes
+          - id: "judge_harness"
+            label: "Implement eval judge (rubric scoring + Notion output)"
+            status: done
+            assignee: hermes
+      - priority: P1
+        tasks:
+          - id: "notion_db_setup"
+            label: "Create Notion DBs: CS_Tickets, Policy_Rules, Automation_Runs, Eval_Cases"
+            status: done
+            assignee: hermes
+          - id: "env_config"
+            label: "Configure .env: NOTION_FAQ_DB_ID, NOTION_POLICIES_DB_ID, MOCK_ADMIN_API_URL"
+            status: done
+            assignee: hermes
+
+  - id: "Phase4_Demo"
+    name: "Demo: End-to-end scenarios"
+    active: true
+    completed: false
+    lanes:
+      - priority: P0
+        tasks:
+          - id: "demo_run"
+            label: "Run all 6 demo scenarios end-to-end with AutomationRun logs"
+            status: done
+            assignee: hermes
+          - id: "portfolio_doc"
+            label: "Write portfolio writeup: Ouroboros spec → Hermes impl → eval results"
+            status: pending
+            assignee: manual

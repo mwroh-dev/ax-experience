@@ -1,0 +1,76 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node -r tsconfig-paths/register src/main.ts",
+    "start": "ts-node -r tsconfig-paths/register src/main.ts",
+    "seed:commerce": "ts-node -r tsconfig-paths/register src/seed/seed-commerce.ts",
+    "build": "tsc && tsc-alias",
+    "start:dist": "node dist/api/src/app.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/platform-express": "^11.1.19",
+    "@notionhq/client": "^5.20.0",
+    "@slack/bolt": "^3.22.0",
+    "@slack/web-api": "^7.8.0",
+    "better-sqlite3": "^11.9.1",
+    "express": "^4.21.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.76"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "roots": [
+      "<rootDir>",
+      "<rootDir>/../../slack/src"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "@api/(.*)": "<rootDir>/$1",
+      "@cs-ops-core/(.*)": "<rootDir>/../../cs-ops-core/src/$1",
+      "@slack/bolt": "<rootDir>/../node_modules/@slack/bolt",
+      "@slack/web-api": "<rootDir>/../node_modules/@slack/web-api",
+      "@slack/logger": "<rootDir>/../node_modules/@slack/logger",
+      "@slack/socket-mode": "<rootDir>/../node_modules/@slack/socket-mode",
+      "@slack/oauth": "<rootDir>/../node_modules/@slack/oauth",
+      "@slack/types": "<rootDir>/../node_modules/@slack/types",
+      "@slack/(.*)": "<rootDir>/../../slack/src/$1",
+      "@notion/(.*)": "<rootDir>/../../notion/src/$1"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.21",
+    "@nestjs/testing": "^11.1.19",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.15.3",
+    "@types/supertest": "^7.2.0",
+    "@types/uuid": "^10.0.0",
+    "jest": "^30.3.0",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.17",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.8.3"
+  }
+}

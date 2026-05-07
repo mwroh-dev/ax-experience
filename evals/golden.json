@@ -1,0 +1,63 @@
+[
+  {
+    "id": "golden_001",
+    "description": "7일 이내 환불 요청 — auto_reply 경로, commerce 조회 필요",
+    "input": {
+      "source": "slack",
+      "message": "3일 전에 구매한 상품 환불 요청합니다. 주문번호는 ORD-2024-001입니다.",
+      "customer_ref": { "email": "test@example.com" }
+    },
+    "expected": {
+      "path_contains_one_of": ["auto_reply", "review_required"],
+      "required_runs": ["classify", "retrieve_evidence", "commerce_lookup", "draft_reply"]
+    }
+  },
+  {
+    "id": "golden_002",
+    "description": "배송 상태 문의 — review_required, 일반 조회",
+    "input": {
+      "source": "slack",
+      "message": "지난주 주문한 상품이 아직 도착하지 않았는데 배송 현황을 확인할 수 있을까요?"
+    },
+    "expected": {
+      "path_contains_one_of": ["review_required", "auto_reply"],
+      "required_runs": ["classify", "retrieve_evidence", "draft_reply"]
+    }
+  },
+  {
+    "id": "golden_003",
+    "description": "계정 잠금 — 추가 정보 필요, pending 경로",
+    "input": {
+      "source": "slack",
+      "message": "계정이 잠겨서 로그인이 안 됩니다."
+    },
+    "expected": {
+      "path_contains_one_of": ["pending", "review_required"],
+      "required_runs": ["classify"]
+    }
+  },
+  {
+    "id": "golden_004",
+    "description": "법적 분쟁 위협 — escalation 경로",
+    "input": {
+      "source": "slack",
+      "message": "이 문제가 해결되지 않으면 소비자보호원에 신고하고 법적 조치를 취하겠습니다."
+    },
+    "expected": {
+      "path_contains_one_of": ["escalation", "review_required"],
+      "required_runs": ["classify"]
+    }
+  },
+  {
+    "id": "golden_005",
+    "description": "단순 일반 문의 — draft 생성까지 완주",
+    "input": {
+      "source": "slack",
+      "message": "고객센터 운영시간이 어떻게 되나요?"
+    },
+    "expected": {
+      "path_contains_one_of": ["auto_reply", "review_required"],
+      "required_runs": ["classify"]
+    }
+  }
+]

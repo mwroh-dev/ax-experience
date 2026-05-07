@@ -1,0 +1,64 @@
+# API 키 및 시크릿
+.env
+*.env.local
+*.env.secret
+.env.*-pass
+
+# openclaw 런타임 데이터 (게이트웨이 토큰, 디바이스 페어링, 메모리 DB 등)
+/config/
+/workspace/
+
+# openclaw 소스 (별도 레포)
+openclaw/
+
+# Node
+node_modules/
+package-lock.json
+
+# Claude Code 세션 파일
+.claude/
+
+# macOS
+.DS_Store
+
+# api
+api/.data/
+api/cs_ops.db
+api/.env
+api/dist/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+api/public/
+
+# Task tracking (local only)
+tasks/
+backlog/
+
+# Ouroboros runtime state
+.ouroboros/
+
+# OMC framework state
+.omc/
+
+# SQLite DB files
+*.db
+*.db-shm
+*.db-wal
+
+# Stray seed files outside seeds/
+cs-ops-api/*.yaml
+
+# Superpowers plans and specs (local only)
+docs/superpowers/
+
+# Git worktrees
+.worktrees/
+docs/reference/
+test-results/
+
+# Scheduler runtime state
+scheduler/.heartbeat
+scheduler/.heartbeat.latest

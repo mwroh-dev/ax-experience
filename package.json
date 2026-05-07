@@ -1,0 +1,38 @@
+{
+  "name": "openclaw",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "qa:dashboard:cases": "node dashboard/scripts/dashboard.mjs cases",
+    "qa:dashboard:automation-runs": "node dashboard/scripts/dashboard.mjs automation-runs",
+    "qa:dashboard:health": "node dashboard/scripts/dashboard.mjs health",
+    "qa:dashboard:knowledge": "node dashboard/scripts/dashboard.mjs knowledge",
+    "qa:dashboard:voc-report": "node dashboard/scripts/dashboard.mjs voc-report",
+    "qa:dashboard:all": "node dashboard/scripts/dashboard.mjs all",
+    "qa:holdout": "curl -s http://localhost:3100/api/voc/eval/holdout | node -e \"const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log('accuracy:',d.accuracy,'passed:',d.passed,'total:',d.total);d.by_category.forEach(c=>console.log(' ',c.category,c.passed+'/'+c.total));\"",
+    "qa:slack-action": "node dashboard/scripts/dashboard.mjs e2e",
+    "qa:slack:accept": "node slack/scripts/slack.mjs e2e-accept",
+    "qa:slack:nosource": "node slack/scripts/slack.mjs e2e-nosource",
+    "qa:notion:seed": "node notion/scripts/notion.mjs seed",
+    "qa:notion:cleanup": "node notion/scripts/notion.mjs cleanup",
+    "qa:e2e:full": "node scripts/qa/e2e-pipeline.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@notionhq/client": "^5.20.0",
+    "@playwright/test": "^1.59.1",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^25.6.2",
+    "jest": "^29.7.0",
+    "playwright": "^1.59.1",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": ["./api/src/*"],
+      "@notion/*": ["./notion/src/*"]
+    }
+  },
+  "include": [
+    "cs-ops-core/src/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "**/dist"]
+}

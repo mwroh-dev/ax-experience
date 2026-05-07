@@ -1,0 +1,126 @@
+goal: >
+  CS Ops Automation Harness — P1 quality improvements.
+  Three independent features to add to the existing pipeline in cs-ops-api/src/.
+  All code must follow the FlowResult<T> functional pattern. No classes. Pure functions.
+  Run tests with: cd <project-root>/cs-ops-api && npx jest --no-coverage
+
+constraints:
+  - TypeScript strict mode, tsc --noEmit must exit 0
+  - Jest v30 test runner (not vitest)
+  - FlowResult<T> = {ok:true;value:T;trace:TraceEntry[]} | {ok:false;error:string;step:string;trace:TraceEntry[]}
+  - No new npm packages unless absolutely necessary
+  - All existing 84 tests must continue to pass
+  - Commit each AC separately with conventional commit format
+  - Working directory for git: <project-root>
+  - All source files are in: <project-root>/cs-ops-api/src/
+
+context: |
+  Existing pipeline flow:
+    normalize_ticket → retrieve_evidence → match_policies → generate_draft → apply_risk_gate → route → log_automation_run
+
+  Key files:
+    src/pipeline.ts          - main orchestrator, process_cs_message()
+    src/types.ts             - AutomationRunLog, Ticket, RiskDecision etc.
+    src/slack/actions.ts     - handle_review_action(action, ticket_id, reviewer_id)
+    src/lib/notion-client.ts - write_automation_run(), search_faq(), search_policies()
+    src/eval/rubric.ts       - 8-dimension eval scoring functions
+    src/policy/matcher.ts    - match_policies(bundle): PolicyMatch[]
+
+  AutomationRunLog interface (in types.ts):
+    run_id, ticket_id, phase, steps, risk_decision, reviewer_action?,
+    evidence_ids, final_answer?, eval_score?, detected_intent?, audit_log_failed?
+
+acceptance_criteria:
+
+  - id: AC1
+    title: "Language detection — detect customer message language and ensure draft responds in same language"
+    description: |
+      Add a pure function detect_language(message: string): 'ko' | 'en' | 'other' to a new file
+      src/lib/language.ts. Use simple heuristic: if Korean Unicode characters (가-힣, ㄱ-ㅎ, ㅏ-ㅣ)
+      make up >= 10% of non-whitespace characters → 'ko', else if ASCII letters >= 60% → 'en', else 'other'.
+
+      Add language?: 'ko' | 'en' | 'other' field to Ticket interface in types.ts.
+      Populate it in normalize_ticket() in classifier/ticket.ts after safe_parse_ticket returns.
+
+      In generate_draft() in draft/generator.ts, include a language instruction in the prompt sent to
+      the LLM: if ticket.language === 'ko' → prepend "반드시 한국어로 응답하세요.\n",
+      if 'en' → prepend "Respond in English.\n", else no prefix.
+
+      Create src/lib/language.spec.ts with tests:
+        - Korean message → 'ko'
+        - English message → 'en'
+        - Mixed or other → correct detection
+        - Empty string → 'other'
+    acceptance:
+      - detect_language exported from src/lib/language.ts
+      - 4+ tests in src/lib/language.spec.ts, all pass
+      - Ticket.language field populated in normalize_ticket
+      - generate_draft prepends language instruction based on ticket.language
+      - tsc --noEmit exit 0
+      - npx jest --no-coverage: all tests pass (85+ total)
+
+  - id: AC2
+    title: "Reviewer feedback loop — update original Automation_Run Notion page on reviewer action"
+    description: |
+      Currently handle_review_action() in src/slack/actions.ts dispatches actions but does not
+      update the original Automation_Run Notion page with the reviewer's decision.
+
+      Add update_automation_run_reviewer(run_id: string, reviewer_action: string, reviewer_id: string): Promise<void>
+      to src/lib/notion-client.ts. This function should:
+        1. Search the Automation_Runs DB for a page where run_id property matches the given run_id
+        2. If found, update the page: set reviewer_action select field + add reviewer_id rich_text field
+        3. If not found or DB not configured, log a warning and return (do not throw)
+
+      Add reviewer_id?: string to AutomationRunLog in types.ts.
+
+      Update handle_review_action() in src/slack/actions.ts to call
+      update_automation_run_reviewer(ticket_id, action, reviewer_id) after handling the action.
+      (Note: ticket_id is used as run_id proxy in the Slack block — this is the existing pattern.)
+
+      Add reviewer_id to write_automation_run params in notion-client.ts.
+
+      Create src/slack/actions.spec.ts (if it doesn't exist) or add test:
+        - handle_review_action with 'approve' → returns ok:true, calls update function
+        - handle_review_action with unknown action → returns ok:false
+    acceptance:
+      - update_automation_run_reviewer exported from src/lib/notion-client.ts
+      - handle_review_action calls update_automation_run_reviewer
+      - reviewer_id field in AutomationRunLog
+      - Tests for handle_review_action pass
+      - tsc --noEmit exit 0
+      - npx jest --no-coverage: all tests pass
+
+  - id: AC3
+    title: "Policy matcher structured query — use Notion databases.query instead of notion.search"
+    description: |
+      search_db() in src/lib/notion-client.ts uses notion.search() which is a full-text search across
+      all Notion content. This is imprecise — it can return pages from other databases.
+
+      Replace the search_db() implementation to use notion.databases.query() with a filter.
+      Use a contains filter on the title property for FAQ DB, and on the Title property for Policies DB.
+
+      New implementation of search_db():
+        const response = await notion.databases.query({
+          database_id: db_id,
+          filter: {
+            property: source === 'faq' ? 'Question' : 'Title',
+            title: { contains: query.slice(0, 100) }  // Notion filter limit
+          },
+          page_size: limit,
+        });
+        // Then extract hits the same way as before (iterate response.results)
+
+      Remove the page.parent.database_id filtering logic since databases.query already scopes to the DB.
+
+      Keep the same return type: NotionHit[].
+      Keep search_faq and search_policies exported functions unchanged in signature.
+
+      Note: If the Notion DB properties don't exist, the query will return empty results — this is acceptable.
+      Wrap the databases.query call in try/catch returning [] on error.
+    acceptance:
+      - search_db uses notion.databases.query (not notion.search)
+      - Filter uses property name appropriate for source type
+      - Error handling: returns [] on API error
+      - Existing tests in src/logging/automation-run.spec.ts and pipeline.spec.ts still pass
+      - tsc --noEmit exit 0
+      - npx jest --no-coverage: all tests pass

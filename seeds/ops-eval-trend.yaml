@@ -1,0 +1,37 @@
+goal: "Add GET /api/metrics/eval-trend endpoint that returns daily average draft evaluation scores over a configurable time window, so ops can monitor LLM output quality trends over time"
+
+constraints:
+  - "Source: automation_runs table WHERE run_type = 'eval_draft'"
+  - "Parse score from output_summary JSON field: JSON.parse(output_summary).score — skip rows where output_summary is null or JSON.parse fails or score is not a number"
+  - "Accept ?period=7d|14d|30d query param — default 7d"
+  - "Group by date (YYYY-MM-DD substring of created_at)"
+  - "Return array sorted ascending by date"
+  - "Days with no eval_draft runs are omitted (sparse series OK)"
+  - "Add get_eval_trend() function to api/src/metrics/metrics-store.ts (not a new file)"
+  - "Add @Get('api/metrics/eval-trend') handler to existing MetricsController"
+
+acceptance_criteria:
+  - "GET /api/metrics/eval-trend returns HTTP 200 with JSON array"
+  - "Each element shape: {date: string (YYYY-MM-DD), avg_score: number (0.0-1.0, 2 decimal places), count: number}"
+  - "GET /api/metrics/eval-trend?period=14d filters to last 14 days"
+  - "Days with no eval_draft runs are absent from result (not included as nulls)"
+  - "Rows with unparseable output_summary or missing score field are silently skipped"
+  - "cd api && npx tsc --noEmit exits 0"
+
+ontology_schema:
+  name: "EvalTrend"
+  description: "Daily average draft evaluation score trend"
+  fields:
+    - name: "date"
+      field_type: "string"
+      description: "Date in YYYY-MM-DD format"
+    - name: "avg_score"
+      field_type: "number"
+      description: "Average draft eval score for that day, rounded to 2 decimal places"
+    - name: "count"
+      field_type: "number"
+      description: "Number of eval_draft runs scored on that day"
+
+metadata:
+  seed_id: "ops_eval_trend_001"
+  ambiguity_score: 0.09

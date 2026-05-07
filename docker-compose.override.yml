@@ -1,0 +1,14 @@
+services:
+  openclaw-gateway:
+    env_file:
+      - .env
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw:rw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace:rw
+
+  openclaw-cli:
+    env_file:
+      - .env
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw:rw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace:rw

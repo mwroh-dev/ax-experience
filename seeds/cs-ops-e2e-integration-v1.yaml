@@ -1,0 +1,78 @@
+goal: |
+  CS Ops atomic tool E2E integration tests.
+  실제 Slack API와 Notion API를 호출하는 통합 테스트를 작성한다.
+  E2E=true 환경변수가 없으면 자동 skip되므로 기존 CI 97개 테스트에 영향 없음.
+
+  1. Slack E2E: post_message → ts 검증 → update_message → 메시지 삭제(clean up)
+  2. Notion E2E: read-only — FAQ DB에서 첫 페이지 읽기, 결과 구조 검증
+  3. Notion write E2E: update_page_status를 Automation_Runs DB 실제 페이지에 적용
+  4. Pipeline E2E: process_cs_message로 전체 파이프라인 smoke test
+
+  모든 E2E 파일은 .e2e.spec.ts 확장자 사용.
+  파일 상단에 E2E 가드: if (!process.env.E2E) { describe.skip(...) } 또는 beforeAll에서 skip.
+
+constraints:
+  - "Working directory for git: <project-root>"
+  - "All source files in: cs-ops-api/src/"
+  - "TypeScript strict mode — npx tsc --noEmit must exit 0 (run from cs-ops-api/)"
+  - "E2E tests must NOT run when E2E env var is absent — use: if (!process.env.E2E) { test.skip(...) }"
+  - "cd cs-ops-api && npx jest --no-coverage must still pass 127 tests (E2E skipped without E2E=true)"
+  - "E2E tests load env from cs-ops-api/.env using dotenv — add dotenv import at top of each e2e file"
+  - "No new npm packages — dotenv is already available via ts-node, use: import 'dotenv/config'"
+  - "Commit each AC separately with conventional commit format + git trailers"
+  - "After Slack post in E2E test, always clean up with chat.delete or chat.update to [TEST DONE]"
+
+  # AC1 — Slack E2E
+  - "Create src/lib/slack-client.e2e.spec.ts"
+  - "Test 1: post_message to SLACK_CS_REVIEW_CHANNEL_ID → expect ok:true, ts is non-empty string"
+  - "Test 2: post_message then update_message with same ts → expect ok:true for both"
+  - "Test 3: get_user_info with SLACK_BOT_TOKEN owner's user_id — skip this test if user_id unavailable"
+  - "Clean up: after each test, call slack.chat.delete({channel, ts}) to remove test messages"
+  - "Guard: if (!process.env.E2E || !process.env.SLACK_BOT_TOKEN) → skip all tests in file"
+
+  # AC2 — Notion read E2E
+  - "Create src/lib/notion-client.e2e.spec.ts"
+  - "Test 1: search_faq('환불') → expect array, each item has source_id/title/content fields"
+  - "Test 2: search_policies('refund') → expect array (may be empty but not throw)"
+  - "Test 3: read_page with first result from search_faq → expect ok:true, title is string"
+  - "Guard: if (!process.env.E2E || !process.env.NOTION_API_KEY) → skip all tests in file"
+
+  # AC3 — Notion write E2E
+  - "In src/lib/notion-client.e2e.spec.ts, add a write test group"
+  - "Test: write_automation_run with test fixture data → verify ok result (no throw)"
+  - "Use run_id='e2e_test_'+Date.now() to avoid collision with real data"
+  - "Guard: only run if process.env.E2E === 'true' AND process.env.NOTION_AUTOMATION_RUNS_DB_ID is set"
+
+  # AC4 — Pipeline smoke E2E
+  - "Create src/pipeline.e2e.spec.ts"
+  - "Test 1: process_cs_message('영업 시간이 어떻게 되나요?') → result.ok === true OR (ok:false with known error like missing token)"
+  - "Test 2: process_cs_message('') → ok:false (empty message should be rejected)"
+  - "The test does NOT assert on draft content — only structural: ok boolean, trace array present"
+  - "Guard: if (!process.env.E2E) → skip all"
+  - "Timeout: 30000ms for E2E tests (LLM calls take time)"
+
+acceptance_criteria:
+  - "src/lib/slack-client.e2e.spec.ts exists with 3+ tests, all guarded with E2E skip"
+  - "src/lib/notion-client.e2e.spec.ts exists with 4+ tests, all guarded with E2E skip"
+  - "src/pipeline.e2e.spec.ts exists with 2+ tests, all guarded with E2E skip"
+  - "cd cs-ops-api && npx jest --no-coverage: still 127 tests pass (E2E skipped)"
+  - "cd cs-ops-api && E2E=true npx jest --no-coverage --testPathPattern=e2e: runs and reports results (pass or informative failure)"
+  - "cd cs-ops-api && npx tsc --noEmit exits 0"
+  - "No real Slack messages left uncleaned after E2E test run"
+
+ontology_schema:
+  name: "E2EIntegrationSuite"
+  description: "End-to-end integration tests for CS Ops atomic tools against live Slack and Notion APIs"
+  fields:
+    - name: "e2e_guard"
+      field_type: "boolean"
+      description: "Tests only run when E2E=true env var is set"
+    - name: "cleanup"
+      field_type: "string"
+      description: "Slack messages deleted after each test to avoid channel pollution"
+
+metadata:
+  seed_id: "cs_ops_e2e_integration_v1"
+  ambiguity_score: 0.06
+  version: "1.0.0"
+  prd_ref: "backlog/feature-ideas.md"

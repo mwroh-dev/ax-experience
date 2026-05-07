@@ -1,0 +1,60 @@
+goal: |
+  cs-ops-core KB fast-path 확장 — Tier 1: delivery_inquiry 신규 order_state 3종 추가.
+
+  `cs-ops-core/src/knowledge/db.ts`의 SEED_PATTERNS 배열에 아래 3개 항목을 추가하라.
+  기존 패턴 2개(in_transit, delivered)는 건드리지 말 것.
+  추가 위치: SEED_PATTERNS 배열 내 기존 delivered 항목 바로 아래, 주석 바로 위.
+
+  추가할 패턴 (TypeScript 코드):
+  {
+    intent: 'delivery_inquiry',
+    order_state: 'cancelled',
+    max_risk_level: 'low',
+    enabled: 1,
+    description: '취소된 주문 배송 조회 — 취소 확인 정보 제공 가능',
+  },
+  {
+    intent: 'delivery_inquiry',
+    order_state: 'returned',
+    max_risk_level: 'low',
+    enabled: 1,
+    description: '반품 처리 중 배송 조회 — 반품 상태 정보 제공 가능',
+  },
+  {
+    intent: 'delivery_inquiry',
+    order_state: 'not_shipped',
+    max_risk_level: 'low',
+    enabled: 1,
+    description: '미출고 주문 조회 — 출고 전 상태 안내 가능',
+  },
+
+  `cs-ops-core/src/knowledge/db.spec.ts`에 새 테스트 3개 추가:
+  describe 블록: 'Tier 1 KB seeds'
+  - 'delivery_inquiry + cancelled + low → true'
+  - 'delivery_inquiry + returned + low → true'
+  - 'delivery_inquiry + not_shipped + low → true'
+  위 3 테스트는 기존 describe('is_auto_safe') 블록의 마지막 it() 바로 뒤에 새 describe 블록으로 추가.
+  각 테스트 본문: expect(is_auto_safe(db, 'delivery_inquiry', '<state>', 'low')).toBe(true);
+  단, 'cancelled', 'returned', 'not_shipped'는 OrderState 타입에 이미 존재하므로 타입 캐스팅 불필요.
+
+constraints:
+  - "수정 파일 2개만: cs-ops-core/src/knowledge/db.ts, cs-ops-core/src/knowledge/db.spec.ts"
+  - "다른 파일(pipeline.ts, types.ts 등) 수정 금지"
+  - "기존 SEED_PATTERNS 2개 항목 변경 금지 — append only"
+  - "TypeScript strict mode — cd cs-ops-core && npx tsc --noEmit must exit 0"
+  - "cd cs-ops-core && npx jest knowledge/db --no-coverage must pass (기존 테스트 포함)"
+  - "커밋 메시지: feat(kb): tier 1 — add delivery_inquiry cancelled/returned/not_shipped KB patterns"
+  - "git trailers 포함: Confidence: high / Scope-risk: narrow"
+
+acceptance_criteria:
+  - "SEED_PATTERNS has exactly 5 entries (in_transit, delivered, cancelled, returned, not_shipped)"
+  - "is_auto_safe(db, 'delivery_inquiry', 'cancelled', 'low') → true"
+  - "is_auto_safe(db, 'delivery_inquiry', 'returned', 'low') → true"
+  - "is_auto_safe(db, 'delivery_inquiry', 'not_shipped', 'low') → true"
+  - "cd cs-ops-core && npx jest knowledge/db --no-coverage: all tests pass"
+  - "cd cs-ops-core && npx tsc --noEmit: exit 0"
+  - "git log --oneline -1 shows tier 1 commit"
+
+metadata:
+  seed_id: "cs_ops_kb_tier1_v1"
+  version: "1.0.0"

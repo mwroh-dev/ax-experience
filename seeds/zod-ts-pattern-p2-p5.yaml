@@ -1,0 +1,213 @@
+goal: |
+  P2-P5: Complete the Zod + ts-pattern migration for the ax-experience codebase.
+
+  P2 — HTTP boundary validation: add z.object().safeParse() at all NestJS controller
+  @Body() and @Query() entry points. On failure throw BadRequestException with Zod
+  issue messages. Change @Body() type annotation from inline object to unknown.
+
+  P3 — SQLite row cast safety: replace all `.get/all() as SomeType` casts with
+  Zod schema safeParse. On failure throw or return a safe fallback consistent with
+  existing error handling.
+
+  P4 — ts-pattern exhaustive dispatch: replace all if/else-if chains and switch
+  statements on string literal union types with match().with(...).exhaustive()
+  from ts-pattern. Import: import { match } from 'ts-pattern'.
+
+  P5 — ENV validation: add Zod config schema to api/src/config.ts that validates
+  all required env vars at startup. Replace scattered process.env.FOO access with
+  config object references.
+
+constraints:
+  - "Working directory: ax-experience repo root"
+  - "NEVER use .parse() — always .safeParse() + manual error check"
+  - "NEVER use .otherwise() in ts-pattern — always .exhaustive()"
+  - "Do NOT add Zod to internal TypeScript-to-TypeScript calls where value is already typed"
+  - "zod is already installed in both cs-ops-core and api packages"
+  - "ts-pattern is already installed in cs-ops-core package. Install in api if needed."
+
+  # ── P2: HTTP boundaries ───────────────────────────────────────────────────────
+
+  # P2-1: api/src/cases/cases.controller.ts
+  - |
+    In api/src/cases/cases.controller.ts:
+    - POST api/cases: change @Body() type to unknown. Add CreateCaseBodySchema =
+      z.object({ source_type: z.string(), external_request_id: z.string().optional(),
+      raw_text: z.string() }). Call safeParse, throw BadRequestException on failure.
+    - GET admin/cases: add ListCasesQuerySchema = z.object({ limit: z.string().optional() }).
+      safeParse the query, throw BadRequestException on failure.
+
+  # P2-2: api/src/ops/ops.controller.ts
+  - |
+    In api/src/ops/ops.controller.ts:
+    - POST api/ops/cs-pipeline: change @Body() type to unknown. Add CsPipelineBodySchema =
+      z.object({ message: z.string(), slack_ts: z.string().optional() }). Replace manual
+      if (!body?.message) check with safeParse. Throw BadRequestException on failure.
+    - GET api/ops/kb/suggestions: add KbSuggestionsQuerySchema = z.object({
+      min_samples: z.string().regex(/^\d+$/).optional() }). Replace manual regex check
+      with safeParse. Throw BadRequestException on failure.
+
+  # P2-3: api/src/metrics/metrics.controller.ts
+  - |
+    In api/src/metrics/metrics.controller.ts: add MetricsQuerySchema = z.object({
+    period: z.string().optional() }). safeParse @Query params in both endpoints.
+    Throw BadRequestException on failure.
+
+  # P2-4: api/src/commerce/refund/refund.controller.ts
+  - |
+    In api/src/commerce/refund/refund.controller.ts:
+    - GET commerce/refunds/eligibility: add EligibilityQuerySchema = z.object({
+      orderId: z.string().optional(), email: z.string().optional() }). safeParse.
+    - POST commerce/refunds/dry-run: change @Body() to unknown. Add DryRunBodySchema =
+      z.object({ order_id: z.string().optional(), customer_id: z.string().optional(),
+      reason: z.string().optional() }). safeParse. Throw BadRequestException on failure.
+
+  # P2-5: api/src/commerce/customer/customer.controller.ts
+  - |
+    In api/src/commerce/customer/customer.controller.ts: add CustomerLookupQuerySchema =
+    z.object({ email: z.string().optional() }). safeParse @Query('email'). Throw
+    BadRequestException on failure.
+
+  # P2-6: api/src/admin/refund/refund.controller.ts
+  - |
+    In api/src/admin/refund/refund.controller.ts:
+    - GET admin/refunds/eligibility: add AdminEligibilityQuerySchema = z.object({
+      orderId: z.string().optional() }). safeParse. Throw BadRequestException on failure.
+    - POST admin/refunds/dry-run: change @Body() to unknown. Add AdminDryRunBodySchema =
+      z.object({ customer_id: z.string(), payment_id: z.string(),
+      reason: z.string().optional() }). safeParse. Throw BadRequestException on failure.
+
+  # ── P3: SQLite row cast safety ───────────────────────────────────────────────
+
+  # P3-1: api/src/cases/case-store.ts
+  - |
+    In api/src/cases/case-store.ts: define CaseRowSchema with z.object() matching all
+    fields of the Case interface. Define ReviewMessageRowSchema matching ReviewMessage.
+    Replace all `.get() as Case | null`, `.all() as Case[]`, `.get() as ReviewMessage | null`
+    with safeParse calls. On safeParse failure, return null for get() or [] for all().
+
+  # P3-2: api/src/cases/automation-run-store.ts
+  - |
+    In api/src/cases/automation-run-store.ts: read the AutomationRun interface in the file.
+    Define AutomationRunRowSchema. Replace all `.all() as any[]` or `.get() as any`
+    with safeParse. On failure return [] or null respectively.
+
+  # P3-3: api/src/metrics/metrics-store.ts
+  - |
+    In api/src/metrics/metrics-store.ts: read the return types used by each query.
+    Define row schemas matching the inline type annotations. Replace `.all() as {...}[]`
+    with safeParse + filter. On failure return [].
+
+  # P3-4: cs-ops-core/src/knowledge/db.ts
+  - |
+    In cs-ops-core/src/knowledge/db.ts: define AutoSafePatternPickSchema matching the
+    Pick<AutoSafePattern, ...> type used in the query results. Replace
+    `.all() as Pick<AutoSafePattern, ...>[]` with safeParse + filter on each row.
+
+  # ── P4: ts-pattern exhaustive dispatch ───────────────────────────────────────
+
+  # P4-1: cs-ops-core/src/pipeline/router.ts
+  - |
+    In cs-ops-core/src/pipeline/router.ts: find the if/if/return dispatch on
+    RiskDecision['action'] (or RouteAction type). Replace with:
+    import { match } from 'ts-pattern';
+    match(decision.action).with('auto_reply', () => ...).with('review_required', () => ...)
+    .with(...).exhaustive()
+    Use the actual union members from the type definition.
+
+  # P4-2: cs-ops-core/src/pipeline.ts
+  - |
+    In cs-ops-core/src/pipeline.ts: find the if/else-if dispatch on RouteAction
+    (lines ~158-193 and ~198). Replace with match(route).with(...).exhaustive()
+    from ts-pattern. Use the actual RouteAction union members.
+
+  # P4-3: cs-ops-core/src/gate/risk.ts
+  - |
+    In cs-ops-core/src/gate/risk.ts: find sequential if guards on CustomerIntent and
+    RiskLevel string literal unions. Replace with match().with(...).exhaustive()
+    where the variable is actually a string literal union type. Skip guards that
+    check non-exhaustive conditions (e.g., null checks, boolean flags).
+
+  # P4-4: cs-ops-core/src/policy/matcher.ts
+  - |
+    In cs-ops-core/src/policy/matcher.ts: find the if/else-if chain on CustomerIntent.
+    Replace with match(intent).with(...).exhaustive() from ts-pattern.
+    Use the actual CustomerIntent union members.
+
+  # P4-5: api/src/tools/openclaw-client.ts
+  - |
+    In api/src/tools/openclaw-client.ts: find if(mode === 'answer_draft') on CsBotMode
+    union type. Replace with match(mode).with('answer_draft', () => ...).with(...).exhaustive()
+    Install ts-pattern in api if not already present.
+
+  # P4-6: cs-ops-core/src/lib/openclaw-client.ts
+  - |
+    In cs-ops-core/src/lib/openclaw-client.ts: find if(mode === 'answer_draft') on CsBotMode.
+    Replace with match(mode).with(...).exhaustive() from ts-pattern.
+
+  # P4-7: cs-ops-core/src/draft/generator.ts
+  - |
+    In cs-ops-core/src/draft/generator.ts: find the if/if/return on lang: 'ko' | 'en' | undefined.
+    Replace with match(lang).with('ko', () => ...).with('en', () => ...)
+    .with(undefined, () => ...).exhaustive()
+
+  # ── P5: ENV validation ────────────────────────────────────────────────────────
+
+  # P5-1: api/src/config.ts (create if not exists)
+  - |
+    Create or update api/src/config.ts with a Zod config schema:
+    import { z } from 'zod';
+    const ConfigSchema = z.object({
+      SLACK_BOT_TOKEN: z.string().optional(),
+      SLACK_APP_TOKEN: z.string().optional(),
+      NOTION_API_KEY: z.string().optional(),
+      OLLAMA_URL: z.string().default('http://localhost:11434'),
+      DB_PATH: z.string().optional(),
+      PORT: z.string().default('3100'),
+    });
+    const _parsed = ConfigSchema.safeParse(process.env);
+    if (!_parsed.success) {
+      console.error('[config] ENV validation failed:', _parsed.error.issues);
+      process.exit(1);
+    }
+    export const config = _parsed.data;
+    Then replace scattered process.env.SLACK_BOT_TOKEN, OLLAMA_URL etc. references
+    in api/src/ with config.SLACK_BOT_TOKEN, config.OLLAMA_URL etc. where safe to do so.
+
+  # Verification after each file
+  - "After each file change: npx tsc --noEmit 2>&1 | grep 'error TS' | wc -l — must be 0"
+
+acceptance_criteria:
+  - "api/src/cases/cases.controller.ts uses CreateCaseBodySchema.safeParse() for POST /api/cases body"
+  - "api/src/ops/ops.controller.ts uses CsPipelineBodySchema.safeParse() for POST /api/ops/cs-pipeline body"
+  - "api/src/admin/refund/refund.controller.ts uses AdminDryRunBodySchema.safeParse() for POST body"
+  - "api/src/commerce/refund/refund.controller.ts uses DryRunBodySchema.safeParse() for POST body"
+  - "api/src/cases/case-store.ts uses CaseRowSchema.safeParse() — no '.get() as Case'"
+  - "api/src/cases/automation-run-store.ts has AutomationRunRowSchema — no '.all() as any[]'"
+  - "cs-ops-core/src/pipeline/router.ts uses match(...).exhaustive() from ts-pattern"
+  - "cs-ops-core/src/pipeline.ts uses match(route).exhaustive() from ts-pattern"
+  - "cs-ops-core/src/policy/matcher.ts uses match(intent).exhaustive() from ts-pattern"
+  - "cs-ops-core/src/draft/generator.ts uses match(lang).exhaustive() from ts-pattern"
+  - "api/src/config.ts exports config object from Zod-validated process.env"
+  - "npx tsc --noEmit from repo root exits with 0 errors"
+  - "npx jest --no-coverage from repo root shows 0 failed tests"
+
+ontology_schema:
+  name: "ZodTsPatternP2P5"
+  description: "HTTP boundary validation, SQLite row schema safety, ts-pattern exhaustive dispatch, ENV validation"
+  fields:
+    - name: "http_schemas"
+      field_type: "schema"
+      description: "Zod schemas for all NestJS @Body() and @Query() entry points"
+    - name: "db_row_schemas"
+      field_type: "schema"
+      description: "Zod schemas for SQLite query results replacing unsafe type casts"
+    - name: "ts_pattern_dispatches"
+      field_type: "code"
+      description: "match().exhaustive() replacing if/else-if chains on string literal unions"
+    - name: "config_schema"
+      field_type: "schema"
+      description: "Zod ENV validation schema in api/src/config.ts"
+
+metadata:
+  seed_id: "zod_ts_pattern_p2_p5"
+  ambiguity_score: 0.06

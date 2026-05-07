@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": ["../api/src/*"],
+      "@notion/*": ["../notion/src/*"],
+      "@slack/bolt": ["../api/node_modules/@slack/bolt"],
+      "@slack/web-api": ["../api/node_modules/@slack/web-api"],
+      "@slack/slack-client": ["./src/slack-client"],
+      "@slack/blocks": ["./src/blocks"],
+      "@cs-ops-core/*": ["../cs-ops-core/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}

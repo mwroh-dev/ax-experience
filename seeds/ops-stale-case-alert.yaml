@@ -1,0 +1,43 @@
+goal: "Add POST /api/ops/stale-case-alert endpoint that finds cases stuck in 'pending' status for more than 24 hours and posts a Slack alert to the ops channel"
+
+constraints:
+  - "NestJS 11 + better-sqlite3 — do not add new npm packages"
+  - "Follow the thin-controller pattern: new logic goes in api/src/ops/stale-case-alert.ts, cases.controller.ts only delegates to it"
+  - "DB access: import get_db from api/src/db/sqlite.ts (returns a better-sqlite3 Database instance)"
+  - "Cases table columns: id TEXT, status TEXT, created_at TEXT, updated_at TEXT (ISO 8601 strings, UTC)"
+  - "Slack: import post_message from '@slack/slack-client' — channel from process.env.SLACK_OPS_CHANNEL_ID"
+  - "If SLACK_OPS_CHANNEL_ID is not set, return {status: 'skipped', stale_count: 0, reason: 'SLACK_OPS_CHANNEL_ID not set'} without throwing"
+  - "Threshold: cases where updated_at < datetime('now', '-24 hours') in SQLite"
+  - "If no stale cases, return {status: 'skipped', stale_count: 0, reason: 'no stale cases'} without posting"
+  - "Post at most 10 case IDs in the Slack message to avoid noise"
+  - "Wrap post_message in try/catch — on failure return {status: 'skipped', stale_count: N, reason: err.message}"
+  - "Do NOT add a new NestJS module — register the endpoint in the existing CasesModule (api/src/cases/cases.module.ts adds the controller already)"
+
+acceptance_criteria:
+  - "POST /api/ops/stale-case-alert returns HTTP 201 with JSON body {status, stale_count, slack_ts?, reason?}"
+  - "When no stale cases exist, response is {status: 'skipped', stale_count: 0, reason: 'no stale cases'}"
+  - "When SLACK_OPS_CHANNEL_ID is missing, response is {status: 'skipped', stale_count: 0, reason: 'SLACK_OPS_CHANNEL_ID not set'}"
+  - "cd api && npx tsc --noEmit exits 0"
+  - "curl -X POST http://localhost:3100/api/ops/stale-case-alert returns valid JSON matching the interface"
+  - "api/src/ops/stale-case-alert.ts exists and exports a post_stale_case_alert() function returning Promise<StaleCaseAlertResult>"
+
+ontology_schema:
+  name: "StaleCaseAlert"
+  description: "Alert payload for cases stuck in pending status beyond threshold"
+  fields:
+    - name: "status"
+      field_type: "string"
+      description: "'sent' when Slack was posted, 'skipped' when no-op"
+    - name: "stale_count"
+      field_type: "number"
+      description: "Number of cases found beyond the 24h threshold"
+    - name: "slack_ts"
+      field_type: "string"
+      description: "Slack message timestamp returned by post_message, present only when status='sent'"
+    - name: "reason"
+      field_type: "string"
+      description: "Human-readable reason when status='skipped'"
+
+metadata:
+  seed_id: "ops_stale_case_001"
+  ambiguity_score: 0.06
