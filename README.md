@@ -1,7 +1,5 @@
 # ax-experience
 
-> **Local-only demo.** This project is designed to run on a developer's local machine and is not intended for public deployment. The admin API (`/admin/*`) has no authentication and exposes internal case data. Do not deploy to Vercel, Render, Fly, or any public host without adding auth middleware first.
-
 이 프로젝트는 두 가지 목적으로 만들었습니다.
 
 1. 커머스 CS 자동화에 실제로 무엇이 필요한지 직접 만들면서 파악하기
