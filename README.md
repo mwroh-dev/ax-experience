@@ -113,6 +113,36 @@ CS message → classify
 
 ---
 
+## Phase 5 — RAG 파운데이션 (경량 구현)
+
+**목표:** 지식베이스 검색의 기반 구조를 먼저 갖추는 단계입니다. 시맨틱 청킹·실제 임베딩 모델보다 파이프라인의 인터페이스와 데이터 흐름을 확정하는 데 집중했습니다.
+
+```
+문서 (마크다운)
+  ↓ chunk_text()      — 고정 크기 슬라이딩 윈도우 (semantic chunking 아님)
+  ↓ embed()           — 현재는 mock embedder (결정론적 해시 벡터)
+  ↓ SQLite 저장       — float32 BLOB + FTS5 rowid 링킹
+
+쿼리
+  ├── BM25 (FTS5)     — 키워드 매칭
+  └── dense           — 코사인 유사도 (linear scan)
+         ↓ RRF 융합
+       RankedHit[]
+```
+
+현재 제약:
+- **Chunker:** 고정 size/overlap 방식. 문장 경계 미고려
+- **Embedder:** mock 구현 (실제 OpenAI API 키 없이 동작). OpenAI adapter 코드는 작성했으나 프로덕션 미연결
+- **Vector DB:** 전용 vector DB 없이 SQLite BLOB으로 대체. 전체 스캔 방식 (10k 청크 미만에서만 실용적)
+
+이 단계에서 확정한 것:
+- `EmbedFn` 포트 인터페이스 (OpenAI / mock 교체 가능)
+- BM25 + dense 하이브리드 + RRF 융합 구조
+- FTS5 외부 콘텐츠 테이블 rowid 링킹 방식
+- Seed 지식 문서 40종 (소비자보호법·FAQ·정책·CS 가이드)
+
+---
+
 ## 구조
 
 ```
