@@ -29,10 +29,9 @@ export class CasesController {
     }
     const limit = parsed.data.limit ?? '50';
     const n = Math.min(parseInt(limit, 10) || 50, 200);
-    const cases = list_cases(n).map(c => ({
+    const cases = list_cases(n).map(({ raw_text, ...c }) => ({
       ...c,
-      raw_text: undefined,
-      raw_preview: c.raw_text.length > 60 ? c.raw_text.slice(0, 60) + '…' : c.raw_text,
+      raw_preview: raw_text.length > 60 ? raw_text.slice(0, 60) + '…' : raw_text,
     }));
     return { cases };
   }

@@ -72,7 +72,7 @@ export const config = {
 export function log_config_summary(): void {
   console.log('[config] cs-ops-core configuration:');
   console.log(`  port: ${config.port}`);
-  console.log(`  db_path: ${_mask(config.db_path)}`);
+  console.log(`  db_path: ${path.relative(process.cwd(), config.db_path)}`);
   console.log(`  openclaw_base_url: ${config.openclaw_base_url}`);
   console.log(`  ollama_url: ${config.ollama_url}`);
   if (config.slack.bot_token) {
