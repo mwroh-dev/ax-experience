@@ -3,7 +3,7 @@ import { config } from '../config';
 import { Case, add_event, get_review_message } from '../cases/case-store';
 import { start_automation_run, complete_automation_run } from '../cases/automation-run-store';
 import { get_latest_draft, save_draft_version } from '../cases/draft-version-store';
-import { call_cs_bot } from '../tools/openclaw-client';
+import { call_cs_bot } from '../llm/claude-cli-adapter';
 import { write_case_summary } from '../tools/notion-client';
 import { post_message, update_message } from '@slack/slack-client';
 import { build_final_status_blocks } from '@slack/blocks';

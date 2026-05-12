@@ -1,13 +1,12 @@
 // cs-ops-core/src/classifier/ticket.spec.ts
 import { normalize_ticket } from './ticket';
+import { ClassifyLLM } from '../llm/ports';
 
-// Mock the openclaw client to avoid network calls in tests
-jest.mock('../lib/openclaw-client', () => ({
-  call_cs_bot: jest.fn(),
-}));
-
-import { call_cs_bot } from '../lib/openclaw-client';
-const mock_call_cs_bot = call_cs_bot as jest.MockedFunction<typeof call_cs_bot>;
+function make_classify_llm(raw: string): ClassifyLLM {
+  return {
+    classifyTicket: jest.fn().mockResolvedValue({ raw_llm_response: raw }),
+  };
+}
 
 function make_llm_response(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -22,26 +21,10 @@ function make_llm_response(overrides: Record<string, unknown> = {}): string {
   });
 }
 
-function make_bot_response(raw: string) {
-  return {
-    case_id: 'test',
-    mode: 'classify_ticket' as const,
-    draft: raw,
-    evidence_used: [],
-    confidence: 'medium' as const,
-    needs_more_info: false,
-    raw_llm_response: raw,
-  };
-}
-
 describe('normalize_ticket', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
   describe('refund request', () => {
     it('classifies a refund message as refund_request', async () => {
-      const raw = make_llm_response({
+      const llm = make_classify_llm(make_llm_response({
         customer_intent: 'refund_request',
         issue_reason: 'changed_mind',
         order_state: 'delivered',
@@ -49,10 +32,9 @@ describe('normalize_ticket', () => {
         evidence_required: ['refund_eligibility', 'order_status'],
         human_review_required: true,
         recommended_action: 'human_review',
-      });
-      mock_call_cs_bot.mockResolvedValueOnce(make_bot_response(raw));
+      }));
 
-      const result = await normalize_ticket('I want to return my order and get a refund');
+      const result = await normalize_ticket('I want to return my order and get a refund', llm);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.customer_intent).toBe('refund_request');
@@ -65,7 +47,7 @@ describe('normalize_ticket', () => {
 
   describe('delivery inquiry', () => {
     it('classifies a delivery status message as delivery_inquiry', async () => {
-      const raw = make_llm_response({
+      const llm = make_classify_llm(make_llm_response({
         customer_intent: 'delivery_inquiry',
         issue_reason: 'late_delivery',
         order_state: 'in_transit',
@@ -73,10 +55,9 @@ describe('normalize_ticket', () => {
         evidence_required: ['order_status', 'delivery_proof'],
         human_review_required: false,
         recommended_action: 'auto_respond',
-      });
-      mock_call_cs_bot.mockResolvedValueOnce(make_bot_response(raw));
+      }));
 
-      const result = await normalize_ticket('Where is my package? It was supposed to arrive yesterday');
+      const result = await normalize_ticket('Where is my package? It was supposed to arrive yesterday', llm);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.customer_intent).toBe('delivery_inquiry');
@@ -87,7 +68,7 @@ describe('normalize_ticket', () => {
 
   describe('privacy request', () => {
     it('classifies a data deletion request as privacy_request with high risk', async () => {
-      const raw = make_llm_response({
+      const llm = make_classify_llm(make_llm_response({
         customer_intent: 'privacy_request',
         issue_reason: 'data_breach_concern',
         order_state: 'no_order',
@@ -95,12 +76,9 @@ describe('normalize_ticket', () => {
         evidence_required: ['legal_reference'],
         human_review_required: true,
         recommended_action: 'escalate',
-      });
-      mock_call_cs_bot.mockResolvedValueOnce(make_bot_response(raw));
+      }));
 
-      const result = await normalize_ticket(
-        'Please delete all my personal data from your systems immediately'
-      );
+      const result = await normalize_ticket('Please delete all my personal data from your systems immediately', llm);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.customer_intent).toBe('privacy_request');
@@ -112,7 +90,7 @@ describe('normalize_ticket', () => {
 
   describe('general inquiry', () => {
     it('classifies a store hours question as general_inquiry with low risk', async () => {
-      const raw = make_llm_response({
+      const llm = make_classify_llm(make_llm_response({
         customer_intent: 'general_inquiry',
         issue_reason: 'other',
         order_state: 'no_order',
@@ -120,10 +98,9 @@ describe('normalize_ticket', () => {
         evidence_required: ['faq_entry'],
         human_review_required: false,
         recommended_action: 'auto_respond',
-      });
-      mock_call_cs_bot.mockResolvedValueOnce(make_bot_response(raw));
+      }));
 
-      const result = await normalize_ticket('What are your store hours?');
+      const result = await normalize_ticket('What are your store hours?', llm);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.customer_intent).toBe('general_inquiry');
@@ -135,8 +112,10 @@ describe('normalize_ticket', () => {
 
   describe('error handling', () => {
     it('returns FlowResult with ok=false when LLM call fails', async () => {
-      mock_call_cs_bot.mockRejectedValueOnce(new Error('LLM unreachable'));
-      const result = await normalize_ticket('test message');
+      const llm: ClassifyLLM = {
+        classifyTicket: jest.fn().mockRejectedValue(new Error('LLM unreachable')),
+      };
+      const result = await normalize_ticket('test message', llm);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.step).toBe('normalize_ticket');

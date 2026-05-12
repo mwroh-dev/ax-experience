@@ -1,13 +1,6 @@
-import { z } from 'zod';
+// api/src/tools/draft-eval.ts
 import { config } from '../config';
-
-const DraftEvalResponseSchema = z.object({
-  choices: z.array(z.object({
-    message: z.object({
-      content: z.string(),
-    }),
-  })),
-});
+import { run_claude_cli } from '@cs-ops-core/llm/claude-cli-runner';
 
 export interface DraftEvalResult {
   polite: boolean;
@@ -18,13 +11,7 @@ export interface DraftEvalResult {
   pass: boolean;
 }
 
-const EVAL_PROMPT = `You are a quality checker for Korean CS bot drafts.
-
-Evaluate the draft response against the original customer inquiry.
-
-Customer inquiry: {RAW_TEXT}
-
-Draft response: {DRAFT}
+const EVAL_SYSTEM_PROMPT = `You are a quality checker for Korean CS bot drafts. Evaluate the draft response against the original customer inquiry.
 
 Score on 3 dimensions (answer true or false):
 1. POLITE: Is the tone polite and appropriate for Korean customer service?
@@ -39,29 +26,14 @@ SCORE: 0.0 to 1.0
 ISSUES: <comma-separated issues, or "none">`;
 
 export async function eval_draft(raw_text: string, draft: string): Promise<DraftEvalResult> {
-  const ollama_url = config.ollama_url + '/v1/chat/completions';
-  const prompt = EVAL_PROMPT
-    .replace('{RAW_TEXT}', raw_text.slice(0, 300))
-    .replace('{DRAFT}', draft.slice(0, 500));
-
+  const input = `Customer inquiry:\n${raw_text.slice(0, 300)}\n\nDraft response:\n${draft.slice(0, 500)}`;
   try {
-    const response = await fetch(ollama_url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.ollama_api_key}` },
-      body: JSON.stringify({
-        model: 'llama3.2:1b',
-        messages: [{ role: 'user', content: prompt }],
-        stream: false,
-        temperature: 0.1,
-        max_tokens: 150,
-      }),
+    const raw = await run_claude_cli({
+      bin: config.claude_cli_bin,
+      timeout_ms: Math.min(config.claude_cli_timeout_ms, 10_000),
+      args: ['-p', '--no-session-persistence', '--system-prompt', EVAL_SYSTEM_PROMPT],
+      input,
     });
-
-    if (!response.ok) return fallback_pass();
-
-    const data_result = DraftEvalResponseSchema.safeParse(await response.json());
-    if (!data_result.success) return fallback_pass();
-    const raw = data_result.data.choices[0]?.message?.content ?? '';
     return parse_eval_response(raw);
   } catch {
     return fallback_pass();

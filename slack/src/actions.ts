@@ -7,7 +7,7 @@ import { dry_run_commerce_refund } from '@api/tools/commerce-api-client';
 import { build_commerce_evidence } from '@api/tools/commerce-evidence-builder';
 import { build_decision_blocks } from './blocks';
 import { on_accept } from '@api/workflows/on_accept';
-import { call_cs_bot } from '@api/tools/openclaw-client';
+import { call_cs_bot } from '@api/llm/claude-cli-adapter';
 import { save_draft_version } from '@api/cases/draft-version-store';
 import { run_flow } from '@api/pipeline/index';
 import { on_resolve_steps, ResolveCtx } from '@api/workflows/on_resolve';

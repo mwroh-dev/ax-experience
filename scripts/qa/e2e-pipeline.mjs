@@ -36,6 +36,8 @@ const SLACK_TEAM_ID = env.SLACK_TEAM_ID ?? '';
 const VOC_REVIEW = env.SLACK_VOC_REVIEW_CHANNEL ?? '';
 const VOC_LOG = env.SLACK_VOC_LOG_CHANNEL ?? '';
 
+const MAX_ANCESTOR_WALK = 30;
+
 const checks = [];
 const check = (label, value) => {
   checks.push({ label, value });
@@ -95,7 +97,7 @@ async function findAndClickButton(page, caseId, label) {
     while ((node = walker.nextNode())) {
       if (!node.nodeValue.includes(caseId)) continue;
       let el = node.parentElement;
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < MAX_ANCESTOR_WALK; i++) {
         if (!el) break;
         if (actionId) {
           const byId = el.querySelector(`[data-qa-action-id="${actionId}"]`);
@@ -199,24 +201,29 @@ async function run() {
   if (slackPage) {
     console.log('\nStep 5: CDP — clicking Send in thread #voc-review...');
     try {
-      await slackPage.waitForTimeout(1500);
+      // Navigate back to channel explicitly to get into a known state
+      await slackPage.goto(`https://app.slack.com/client/${SLACK_TEAM_ID}/${VOC_REVIEW}`, { waitUntil: 'domcontentloaded' });
+      await slackPage.waitForTimeout(3000);
       await closeThreadAndScrollPrimary(slackPage);
 
-      // Open thread by clicking "1 reply" near caseId — poll up to 12s for the CS Bot Draft to appear
-      const findReplyBtn = (caseId) => {
+      // Open thread: find the specific message container containing caseId, then click its reply count
+      const findReplyByTs = ({ caseId }) => {
         const prim = document.querySelector('.p-view_contents--primary') || document.body;
         const walker = document.createTreeWalker(prim, NodeFilter.SHOW_TEXT);
         let node;
         while ((node = walker.nextNode())) {
           if (!node.nodeValue.includes(caseId)) continue;
           let el = node.parentElement;
-          for (let i = 0; i < 30; i++) {
-            if (!el) break;
-            const btns = Array.from(el.querySelectorAll('button, [role="button"]'));
-            const reply = btns.find(b => /reply|답글/i.test(b.textContent));
-            if (reply) {
-              const r = reply.getBoundingClientRect();
-              if (r.y > 0) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          for (let i = 0; i < MAX_ANCESTOR_WALK; i++) {
+            if (!el || el === prim) break;
+            // Use data-qa="reply_bar_count" — Slack's reply count button
+            const replyBtns = el.querySelectorAll('[data-qa="reply_bar_count"]');
+            if (replyBtns.length === 1) {
+              // Found the message container with exactly 1 reply button — click it
+              const r = replyBtns[0].getBoundingClientRect();
+              if (r.y > 0 && r.width > 0) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            } else if (replyBtns.length > 1) {
+              break; // crossed message boundary
             }
             el = el.parentElement;
           }
@@ -224,9 +231,9 @@ async function run() {
         return null;
       };
       let replyRect = null;
-      const replyDeadline = Date.now() + 12000;
+      const replyDeadline = Date.now() + 20000;
       while (!replyRect && Date.now() < replyDeadline) {
-        replyRect = await slackPage.evaluate(findReplyBtn, caseId);
+        replyRect = await slackPage.evaluate(findReplyByTs, { caseId });
         if (!replyRect) await slackPage.waitForTimeout(800);
       }
 

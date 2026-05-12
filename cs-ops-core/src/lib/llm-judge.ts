@@ -1,8 +1,8 @@
 // cs-ops-core/src/lib/llm-judge.ts
 import { z } from 'zod';
-import { spawn } from 'child_process';
 import { FlowResult } from '@api/pipeline/index';
 import { Ticket } from '../types';
+import { run_claude_cli, extract_inner_json } from '../llm/claude-cli-runner';
 
 export interface JudgeInput {
   ticket: Ticket;
@@ -35,7 +35,7 @@ const JUDGE_SCHEMA = JSON.stringify({
 const SYSTEM_PROMPT =
   'CS 티켓 자동 처리 판단기. 소비자가 직접 해결 가능한 정보성 문의(배송 조회, 결제 확인, 주문 상태 등)는 is_auto_safe:true로 판단하라. 환불/교환/개인정보/분쟁/고위험(high/critical)은 반드시 is_auto_safe:false로 판단하라. JSON만 반환하라.';
 
-const CLAUDE_ARGS = ['-p', '--bare', '--output-format', 'json', '--json-schema', JUDGE_SCHEMA, '--system-prompt', SYSTEM_PROMPT];
+const CLAUDE_ARGS = ['-p', '--no-session-persistence', '--output-format', 'json', '--json-schema', JUDGE_SCHEMA, '--system-prompt', SYSTEM_PROMPT];
 
 export const claude_cli_judge: LLMJudge = async ({ ticket }) => {
   const started_at = Date.now();
@@ -47,59 +47,22 @@ export const claude_cli_judge: LLMJudge = async ({ ticket }) => {
       issue_reason: ticket.issue_reason,
     });
 
-    const { stdout, stderr, status } = await new Promise<{ stdout: string; stderr: string; status: number }>(
-      (resolve, reject) => {
-        const proc = spawn('claude', CLAUDE_ARGS);
-        let out = '';
-        let err = '';
-        const timer = setTimeout(() => { proc.kill(); reject(new Error('claude CLI timed out after 30s')); }, 30_000);
-        proc.stdout.on('data', (d: Buffer) => { out += d.toString(); });
-        proc.stderr.on('data', (d: Buffer) => { err += d.toString(); });
-        proc.on('close', (code: number | null) => { clearTimeout(timer); resolve({ stdout: out, stderr: err, status: code ?? 1 }); });
-        proc.on('error', (e: Error) => { clearTimeout(timer); reject(e); });
-        proc.stdin.write(input_payload, 'utf8');
-        proc.stdin.end();
-      }
-    );
+    const raw = await run_claude_cli({
+      bin: process.env.CLAUDE_CLI_BIN ?? 'claude',
+      timeout_ms: parseInt(process.env.CLAUDE_CLI_TIMEOUT_MS ?? '30000', 10),
+      args: CLAUDE_ARGS,
+      input: input_payload,
+    });
 
-    if (status !== 0) throw new Error(`claude exited ${status}: ${stderr}`);
-
-    const raw = stdout.trim();
-    // --output-format json wraps result: { type: 'result', result: '...' } or plain JSON
-    let outer: unknown;
-    try {
-      outer = JSON.parse(raw);
-    } catch {
-      throw new Error(`Failed to parse judge output: ${raw}`);
-    }
-
-    let parsed: JudgeOutput;
-    if (
-      typeof outer === 'object' && outer !== null &&
-      'result' in outer && typeof (outer as Record<string, unknown>).result === 'string'
-    ) {
-      let inner: unknown;
-      try {
-        inner = JSON.parse((outer as { result: string }).result);
-      } catch {
-        throw new Error(`Failed to parse judge inner output: ${raw}`);
-      }
-      const inner_result = JudgeOutputSchema.safeParse(inner);
-      if (!inner_result.success) {
-        throw new Error(`Judge output validation failed: ${inner_result.error.message}`);
-      }
-      parsed = inner_result.data;
-    } else {
-      const outer_result = JudgeOutputSchema.safeParse(outer);
-      if (!outer_result.success) {
-        throw new Error(`Judge output validation failed: ${outer_result.error.message}`);
-      }
-      parsed = outer_result.data;
+    const outer = extract_inner_json(raw);
+    const result = JudgeOutputSchema.safeParse(outer);
+    if (!result.success) {
+      throw new Error(`Judge output validation failed: ${result.error.message}`);
     }
 
     return {
       ok: true,
-      value: parsed,
+      value: result.data,
       trace: [{ step: 'llm_judge', started_at, duration_ms: Date.now() - started_at, ok: true }],
     };
   } catch (err) {

@@ -5,7 +5,7 @@ import { start_automation_run, complete_automation_run } from '../cases/automati
 import { save_draft_version } from '../cases/draft-version-store';
 import { search_notion_knowledge, KnowledgeHit, write_improvement_backlog } from '../tools/notion-client';
 import { build_commerce_evidence } from '../tools/commerce-evidence-builder';
-import { call_cs_bot } from '../tools/openclaw-client';
+import { call_cs_bot } from '../llm/claude-cli-adapter';
 import { post_message, post_thread_reply } from '@slack/slack-client';
 import { build_cs_bot_draft_blocks } from '@slack/blocks';
 import { CommerceResult } from '../tools/commerce-evidence-builder';
@@ -159,11 +159,12 @@ export async function on_accept(
       : commerce_result ? ['Commerce API'] : [];
     const mode = conflict.detected ? 'conflict_detected' : confidence;
     const draft_blocks = build_cs_bot_draft_blocks(c.id, mode, draft, evidence_labels, eval_result ?? undefined);
-    await post_thread_reply(
-      channel_id, thread_ts,
-      `[CS Bot Draft] case_id: ${c.id} | confidence: ${confidence}`,
-      draft_blocks,
-    ).catch(err => console.warn('[on_accept] thread reply failed:', err.message));
+    await post_thread_reply({
+      channel: channel_id,
+      thread_ts,
+      text: `[CS Bot Draft] case_id: ${c.id} | confidence: ${confidence}`,
+      blocks: draft_blocks,
+    }).catch(err => console.warn('[on_accept] thread reply failed:', err.message));
   }
 
   if (config.slack.voc_log_channel) {

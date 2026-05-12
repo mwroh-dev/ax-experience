@@ -75,12 +75,12 @@ const update_review_card_step = recover<EscalateCtx>(
     run: async (ctx) => {
       const review = get_review_message(ctx.case_id);
       if (!review) return ctx;
-      await update_message(
-        review.review_channel_id,
-        review.review_message_ts,
-        `[에스컬레이션] case: ${ctx.case_id}`,
-        build_escalation_blocks(ctx.case),
-      );
+      await update_message({
+        channel: review.review_channel_id,
+        ts: review.review_message_ts,
+        text: `[에스컬레이션] case: ${ctx.case_id}`,
+        blocks: build_escalation_blocks(ctx.case),
+      });
       return ctx;
     },
   },

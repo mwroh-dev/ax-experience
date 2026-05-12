@@ -1,7 +1,8 @@
 // cs-ops-core/src/draft/generator.ts
 import { match } from 'ts-pattern';
 import { FlowResult } from '@api/pipeline/index';
-import { call_cs_bot } from '../lib/openclaw-client';
+import { DraftLLM } from '../llm/ports';
+import { claude_cli_draft_adapter } from '../llm/claude-cli-draft-adapter';
 import { EvidenceBundle, PolicyMatch, Draft } from '../types';
 
 function format_lang_prefix(lang: 'ko' | 'en' | 'other' | undefined): string {
@@ -53,7 +54,8 @@ function collect_evidence_ids(bundle: EvidenceBundle, matches: PolicyMatch[]): s
 
 export async function generate_draft(
   bundle: EvidenceBundle,
-  matches: PolicyMatch[]
+  matches: PolicyMatch[],
+  llm: DraftLLM = claude_cli_draft_adapter,
 ): Promise<FlowResult<Draft>> {
   const started_at = Date.now();
   const trace_entry_base = { step: 'generate_draft', started_at };
@@ -64,9 +66,8 @@ export async function generate_draft(
     const lang_prefix = format_lang_prefix(bundle.ticket.language);
     const user_message = `${lang_prefix}Customer intent: ${bundle.ticket.customer_intent.replace(/_/g, ' ')}. Issue: ${bundle.ticket.issue_reason.replace(/_/g, ' ')}.`;
 
-    const response = await call_cs_bot({
+    const response = await llm.generateDraft({
       case_id: bundle.ticket.ticket_id,
-      mode: 'answer_draft',
       user_message,
       evidence_snippets: snippets,
     });

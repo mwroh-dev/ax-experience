@@ -8,7 +8,10 @@ jest.mock('@cs-ops-core/lib/llm-judge', () => ({
   passthrough_judge: jest.fn().mockResolvedValue({ ok: true, value: { is_auto_safe: true, reason: 'passthrough', confidence: 'high' }, trace: [] }),
 }));
 jest.mock('@cs-ops-core/logging/automation-run', () => ({ log_automation_run: jest.fn().mockResolvedValue(undefined) }));
-jest.mock('@cs-ops-core/lib/openclaw-client', () => ({ call_cs_bot: jest.fn() }));
+jest.mock('@cs-ops-core/llm/claude-cli-draft-adapter', () => ({
+  claude_cli_draft_adapter: { generateDraft: jest.fn() },
+  claude_cli_summary_adapter: { keepSummary: jest.fn().mockResolvedValue({ summary: 'mock summary' }) },
+}));
 jest.mock('@slack/web-api', () => ({
   WebClient: jest.fn().mockImplementation(() => ({ chat: { postMessage: jest.fn().mockResolvedValue({ ok: true }) } })),
 }));
