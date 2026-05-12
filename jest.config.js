@@ -3,5 +3,6 @@ module.exports = {
   projects: [
     '<rootDir>/cs-ops-core',
     '<rootDir>/slack',
+    '<rootDir>/notion',
   ],
 };

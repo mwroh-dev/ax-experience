@@ -25,6 +25,8 @@ const EnvSchema = z.object({
   CLAUDE_CLI_TIMEOUT_MS: z.string().default('30000'),
   // Commerce
   COMMERCE_API_BASE_URL: z.string().optional(),
+  // Embedding (optional — fallback to mock if absent)
+  OPENAI_API_KEY: z.string().optional(),
 });
 
 const _parsed = EnvSchema.safeParse(process.env);
@@ -48,6 +50,7 @@ export const config = {
   claude_cli_bin: _env.CLAUDE_CLI_BIN,
   claude_cli_timeout_ms: parseInt(_env.CLAUDE_CLI_TIMEOUT_MS, 10),
   commerce_api_base_url: _env.COMMERCE_API_BASE_URL ?? `http://localhost:${_port}/commerce`,
+  openai_api_key: _env.OPENAI_API_KEY,
   slack: {
     // CS_OPS_ prefix = cs-ops-core 전용 앱. SLACK_ fallback은 임시 단일 앱 사용 시
     bot_token: _env.CS_OPS_SLACK_BOT_TOKEN || _env.SLACK_BOT_TOKEN || '',
