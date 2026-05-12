@@ -11,7 +11,9 @@
  *   verify-backlog <case_id>
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+
+mkdirSync('test-results', { recursive: true });
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import os from 'os';
@@ -369,7 +371,7 @@ async function actionCleanup() {
 
 const NOTION_DB_ID = process.env.NOTION_IMPROVEMENT_BACKLOG_DB_ID ?? '';
 const NOTION_URL   = NOTION_DB_ID ? `https://www.notion.so/${NOTION_DB_ID.replace(/-/g, '')}` : '';
-const CHROME_PROFILE = join(os.homedir(), 'Library/Application Support/Google/Chrome');
+const CHROME_PROFILE = process.env.CHROME_PROFILE_DIR ?? join(os.tmpdir(), 'ax-experience-chrome-profile');
 
 async function actionVerifyBacklog(caseId) {
   if (!caseId) {
@@ -395,7 +397,7 @@ async function actionVerifyBacklog(caseId) {
     });
     await page.waitForTimeout(5000);
 
-    await page.screenshot({ path: '/tmp/notion-1-loaded.png' });
+    await page.screenshot({ path: 'test-results/notion-1-loaded.png' });
 
     const pageState = await page.evaluate(() => ({
       title: document.title.slice(0, 60),
@@ -411,7 +413,7 @@ async function actionVerifyBacklog(caseId) {
     }
 
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: '/tmp/notion-2-db.png' });
+    await page.screenshot({ path: 'test-results/notion-2-db.png' });
 
     const found = await page.evaluate((cid) => {
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
@@ -429,8 +431,8 @@ async function actionVerifyBacklog(caseId) {
     console.log(`[notion] matches: ${found.length}`);
     found.forEach(f => console.log(`  [${f.tag}] ${f.text.slice(0, 80)}`));
 
-    await page.screenshot({ path: '/tmp/notion-3-final.png', fullPage: false });
-    console.log('[notion] done — check /tmp/notion-*.png');
+    await page.screenshot({ path: 'test-results/notion-3-final.png', fullPage: false });
+    console.log('[notion] done — check test-results/notion-*.png');
   } finally {
     await browser.close();
   }

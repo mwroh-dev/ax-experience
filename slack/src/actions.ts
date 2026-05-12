@@ -1,5 +1,6 @@
 import { App } from '@slack/bolt';
 import { config } from '@api/config';
+import { mask } from '@api/util/log';
 import { get_case, try_update_case_status, add_event, save_tool_call, update_tool_call, get_review_message } from '@api/cases/case-store';
 import { post_message, post_thread_reply, update_message } from './slack-client';
 import { dry_run_commerce_refund } from '@api/tools/commerce-api-client';
@@ -36,10 +37,10 @@ export function register_actions(app: App): void {
       if (ch && ts) {
         await client.chat.postEphemeral({ channel: ch, user: actor_id ?? '', thread_ts: ts, text: '권한 없음: 리뷰어 허용 목록에 포함되지 않은 사용자입니다.' }).catch(() => {});
       }
-      console.warn(`[action] unauthorized keep | actor=${actor_id}`);
+      console.warn(`[action] unauthorized keep | actor=${mask(actor_id ?? '')}`);
       return;
     }
-    console.log(`[action] case_keep | case_id=${case_id} | actor=${actor_id}`);
+    console.log(`[action] case_keep | case_id=${case_id} | actor=${mask(actor_id ?? '')}`);
 
     const c = get_case(case_id);
     if (!c) {
@@ -82,14 +83,14 @@ export function register_actions(app: App): void {
     const actor_id = (body as any).user?.id;
     const thread_ts = (body as any).message?.ts;
     const channel_id = (body as any).channel?.id;
-    console.log(`[action] case_accept | case_id=${case_id} | actor=${actor_id} | channel=${channel_id} | ts=${thread_ts}`);
+    console.log(`[action] case_accept | case_id=${case_id} | actor=${mask(actor_id ?? '')} | channel=${mask(channel_id ?? '')} | ts=${thread_ts}`);
 
     if (!is_authorized(actor_id)) {
       add_event(case_id, 'unauthorized_action', 'system', actor_id, { action_type: 'case_accept' });
       if (channel_id && thread_ts) {
         await client.chat.postEphemeral({ channel: channel_id, user: actor_id ?? '', thread_ts, text: '권한 없음: 리뷰어 허용 목록에 포함되지 않은 사용자입니다.' }).catch(() => {});
       }
-      console.warn(`[action] unauthorized accept | actor=${actor_id}`);
+      console.warn(`[action] unauthorized accept | actor=${mask(actor_id ?? '')}`);
       return;
     }
 
@@ -251,7 +252,7 @@ export function register_actions(app: App): void {
     const actor_id = (body as any).user?.id;
     const channel_id = (body as any).channel?.id;
     const thread_ts = (body as any).message?.ts;
-    console.log(`[action] case_retry | case_id=${case_id} | actor=${actor_id}`);
+    console.log(`[action] case_retry | case_id=${case_id} | actor=${mask(actor_id ?? '')}`);
 
     if (!is_authorized(actor_id)) {
       add_event(case_id, 'unauthorized_action', 'system', actor_id, { action_type: 'case_retry' });
