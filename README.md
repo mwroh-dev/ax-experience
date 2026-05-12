@@ -3,7 +3,7 @@
 이 프로젝트는 두 가지 목적으로 만들었습니다.
 
 1. 커머스 CS 자동화에 실제로 무엇이 필요한지 직접 만들면서 파악하기
-2. OpenClaw, Hermes, Ouroboros 같은 agentic 도구가 실제로 어느 수준까지 작동하는지 — 하네스, seed, eval을 어떻게 주입해야 하는지 실험하기
+2. CS/VOC 자동화에 필요한 agent harness를 직접 설계하고, LLM 실행기는 교체 가능한 adapter로 격리하기
 
 목(mock)이나 데모용 코드 없이, 매 단계마다 실제 서비스에 연결하면서 진행했습니다.
 
@@ -37,7 +37,7 @@ graph TB
     subgraph External["외부 서비스"]
         Slack["Slack\n인바운드 이벤트 수신 / Block Kit 리뷰 카드 발행"]
         Notion["Notion\nFAQ·정책 조회 / 실행 기록 저장"]
-        OpenClaw["OpenClaw\n초안 생성 — Ollama 연결"]
+        LLM["Claude CLI\nClassify · Draft · Summary (adapter)"]
     end
 
     subgraph Core["cs-ops-core — 파이프라인 오케스트레이션"]
@@ -46,7 +46,7 @@ graph TB
 
     Slack <--> Core
     Core <--> Notion
-    Core -.->|초안 생성 단계에서만| OpenClaw
+    Core -.->|classify · draft · summary 단계| LLM
 ```
 
 모든 티켓을 세 경로 중 하나로 결정합니다:
@@ -122,7 +122,8 @@ cs-ops-core/       함수형 CS 파이프라인 (포트폴리오 핵심 모듈)
     evidence/     Notion FAQ + 정책 조회
     policy/       정책 규칙 매칭
     gate/         리스크 게이트 (하드 룰 + 자동 발송 가드)
-    draft/        OpenClaw를 통한 LLM 드래프트 생성
+    draft/        Claude CLI adapter를 통한 LLM 드래프트 생성
+    llm/          LLM port interfaces + Claude CLI adapters (ClassifyLLM / DraftLLM / SummaryLLM)
     slack/        Block Kit 리뷰 빌더 + 액션 디스패처
     logging/      PII 마스킹 후 Notion에 자동화 실행 기록
     lib/          공용 유틸: Slack 클라이언트, Notion 클라이언트, PII 마스커
@@ -141,4 +142,4 @@ dashboard/        React 18 어드민 UI
 
 ## 기술 스택
 
-TypeScript · Slack Bolt · `@notionhq/client` · OpenClaw · Ouroboros · Playwright CDP · Jest · NestJS · React + Vite
+TypeScript · Slack Bolt · `@notionhq/client` · Claude CLI (LLM adapter) · Ouroboros · Playwright CDP · Jest · NestJS · React + Vite

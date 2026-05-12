@@ -7,7 +7,7 @@ Read before implementing anything in this project.
 - api: port 3100 (NestJS + TypeScript + SQLite at `api/.data/cs-ops.db`)
 - Mock Commerce API: port 3101 (auto-started by api)
 - Dashboard: React 18 + Vite; dev at port 5173, prod served at `api/admin`
-- Consolidated CLI scripts: `{slack,notion,dashboard,openclaw}/scripts/*.mjs` (action-based — do not re-fragment)
+- Consolidated CLI scripts: `{slack,notion,dashboard}/scripts/*.mjs` (action-based — do not re-fragment)
 - QA scripts live in `scripts/qa/` or `tests/e2e/` and require live api + Chromium with `--remote-debugging-port=9222`. Never put QA artifacts in `/tmp`.
 
 ## Key Rules
@@ -24,7 +24,7 @@ Read before implementing anything in this project.
 - For end-to-end pipeline proof, use real Slack events; test endpoint PASS does not equal feature PASS.
 
 ### Slack integration
-- api and openclaw-gateway MUST use separate Slack apps and tokens. A shared `SLACK_APP_TOKEN` causes `num_connections=2` and Slack round-robins `block_actions` between them — events get silently dropped.
+- The api Slack app must use a dedicated token. A shared `SLACK_APP_TOKEN` across multiple apps causes `num_connections=2` and Slack round-robins `block_actions` — events get silently dropped.
 - The bot must be a channel member for `app_mention` to fire — OAuth scope alone is not enough. Verify with `conversations.members` before debugging downstream.
 - Mask Slack IDs (`C…/U…/T…/B…` prefixes) and absolute paths in QA reports and logs. Add `ntn_*` (Notion) and `xapp-*` (Slack app token) patterns to redaction utilities; run masking regression tests after touching `redaction.ts` or `log.ts`.
 
@@ -56,15 +56,8 @@ Read before implementing anything in this project.
 - `improvement_backlog` empty ≠ broken — it only fires on LLM-success AND `notion_hits.length === 0`. Test it with queries that miss the Notion knowledge base.
 - Acceptance-criteria changes (e.g. `< 0.80` → `≤ 0.80`) need a separate proposal, separate approval, and a separate commit. Never relax thresholds in the same response as the failing run.
 
-### OpenClaw gateway config
-- Config key for model selection is `agents.defaults.model.primary` (not `agent.model`). Verify exact keys against `src/config/schema.base.generated.ts` before editing `openclaw.json` — unrecognized keys crash the gateway on startup.
-- Minimum required fields: `gateway.mode: "local"` must be present; omitting it causes a security-policy startup block.
-- Provider prefix for Gemini models is `google/` (e.g. `google/gemini-2.5-pro`), not `gemini/`. Wrong prefix triggers repeated failover loops that block the event loop for 60–80 s.
-- `OLLAMA_API_KEY` must be set (any non-empty value, e.g. `ollama`) for Ollama to be recognized as a provider. `docker compose restart` does not reload `env_file` — always use `down` + `up` after `.env` changes.
-- `auth-profiles.json` is NOT hot-reloaded; changes require a container restart.
-- If the gateway hangs at "starting…" with no output, run `docker volume rm openclaw_openclaw-plugin-runtime-deps` then restart — the plugin cache volume is safe to delete.
-- `openai-completions` provider `baseUrl` must end with `/v1` (e.g. `http://host:11434/v1`); the gateway appends `/chat/completions` directly.
-- Session history lives in `config/agents/*/sessions/` — deleting only `workspace/sessions` does not reset session context.
+### OpenClaw gateway config (archived — removed from active pipeline)
+- OpenClaw dependency removed as of 2026-05-12. LLM calls now route through Claude CLI adapters in `cs-ops-core/src/llm/` and `api/src/llm/`.
 
 ## Specs Reference
 

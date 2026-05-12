@@ -8,13 +8,14 @@ import { match_policies } from './policy/matcher';
 import { generate_draft } from './draft/generator';
 import { apply_risk_gate } from './gate/risk';
 import { log_automation_run } from './logging/automation-run';
-import { call_cs_bot } from './lib/openclaw-client';
 import { make_failed_run } from './pipeline/run-log-builder';
 import { route_by_risk } from './pipeline/router';
 import { notify_auto, notify_review, notify_escalate } from './pipeline/notifier';
 import { AutomationRunLog, EvidenceBundle, PolicyMatch } from './types';
 import { get_kb, is_auto_safe, log_run_sample, log_judge_decision } from './knowledge/db';
 import { claude_cli_judge, LLMJudge } from './lib/llm-judge';
+import { SummaryLLM } from './llm/ports';
+import { claude_cli_summary_adapter } from './llm/claude-cli-draft-adapter';
 
 export const KB_FAST_PATH_REASON = 'knowledge DB fast-path' as const;
 
@@ -22,6 +23,7 @@ export async function process_cs_message(
   message: string,
   _slack_ts: string,
   judge: LLMJudge = claude_cli_judge,
+  summary_llm: SummaryLLM = claude_cli_summary_adapter,
 ): Promise<FlowResult<AutomationRunLog>> {
   const run_id = uuidv4();
   const steps: string[] = [];
@@ -203,12 +205,11 @@ export async function process_cs_message(
   await match(route)
     .with('review', async () => {
       try {
-        const summary_result = await call_cs_bot({
+        const summary_result = await summary_llm.keepSummary({
           case_id: ticket.ticket_id,
-          mode: 'keep_summary',
           user_message: message,
         });
-        hold_summary = summary_result.draft;
+        hold_summary = summary_result.summary;
       } catch (summary_err) {
         console.warn('[pipeline] keep_summary failed — continuing without hold summary:', summary_err);
       }

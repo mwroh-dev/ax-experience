@@ -2,47 +2,10 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { FlowResult } from '@api/pipeline/index';
-import { call_cs_bot } from '../lib/openclaw-client';
+import { ClassifyLLM } from '../llm/ports';
+import { claude_cli_classify_adapter } from '../llm/claude-cli-classify-adapter';
 import { detect_language } from '../lib/language';
 import { Ticket } from '../types';
-
-const TICKET_SCHEMA = {
-  type: 'object',
-  properties: {
-    customer_intent: {
-      type: 'string',
-      enum: [
-        'refund_request', 'exchange_request', 'delivery_inquiry',
-        'subscription_cancel', 'privacy_request', 'product_defect_report',
-        'general_inquiry', 'complaint',
-      ],
-    },
-    issue_reason: {
-      type: 'string',
-      enum: [
-        'changed_mind', 'defective_product', 'not_as_described', 'late_delivery',
-        'wrong_item', 'payment_dispute', 'subscription_billing', 'data_breach_concern', 'other',
-      ],
-    },
-    order_state: {
-      type: 'string',
-      enum: ['not_shipped', 'in_transit', 'delivered', 'returned', 'cancelled', 'unknown', 'no_order'],
-    },
-    risk_level: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
-    evidence_required: {
-      type: 'array',
-      items: {
-        type: 'string',
-        enum: ['order_status', 'delivery_proof', 'customer_history', 'refund_eligibility', 'faq_entry', 'policy_rule', 'legal_reference'],
-      },
-    },
-    human_review_required: { type: 'boolean' },
-    recommended_action: {
-      type: 'string',
-      enum: ['auto_respond', 'human_review', 'escalate', 'request_more_info'],
-    },
-  },
-} as const;
 
 const TicketSchema = z.object({
   customer_intent: z.enum([
@@ -74,7 +37,7 @@ function safe_parse_ticket(raw: string): Ticket | null {
     if (!json_match) return null;
 
     const result = TicketSchema.safeParse(JSON.parse(json_match[0]));
-    if (!result.success) return null;  // Reject — caller will return ok:false
+    if (!result.success) return null;
 
     const d = result.data;
     const risk = d.risk_level;
@@ -95,15 +58,13 @@ function safe_parse_ticket(raw: string): Ticket | null {
   }
 }
 
-export async function normalize_ticket(message: string): Promise<FlowResult<Ticket>> {
+export async function normalize_ticket(
+  message: string,
+  llm: ClassifyLLM = claude_cli_classify_adapter,
+): Promise<FlowResult<Ticket>> {
   const started_at = Date.now();
   try {
-    const response = await call_cs_bot({
-      case_id: uuidv4(),
-      mode: 'classify_ticket',
-      user_message: message,
-      schema: TICKET_SCHEMA as unknown as Record<string, unknown>,
-    });
+    const response = await llm.classifyTicket(message);
 
     const ticket = safe_parse_ticket(response.raw_llm_response);
     if (!ticket) {

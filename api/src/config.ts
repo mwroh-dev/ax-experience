@@ -4,7 +4,6 @@ import { z } from 'zod';
 const EnvSchema = z.object({
   PORT: z.string().default('3100'),
   DB_PATH: z.string().optional(),
-  OPENCLAW_BASE_URL: z.string().optional(),
   // Slack
   CS_OPS_SLACK_BOT_TOKEN: z.string().optional(),
   SLACK_BOT_TOKEN: z.string().optional(),
@@ -21,9 +20,9 @@ const EnvSchema = z.object({
   NOTION_FAQ_DB_ID: z.string().optional(),
   NOTION_POLICIES_DB_ID: z.string().optional(),
   NOTION_IMPROVEMENT_BACKLOG_DB_ID: z.string().optional(),
-  // Ollama / LLM
-  OLLAMA_URL: z.string().default('http://localhost:11434'),
-  OLLAMA_API_KEY: z.string().optional(),
+  // LLM (Claude CLI adapter)
+  CLAUDE_CLI_BIN: z.string().default('claude'),
+  CLAUDE_CLI_TIMEOUT_MS: z.string().default('30000'),
   // Commerce
   COMMERCE_API_BASE_URL: z.string().optional(),
 });
@@ -46,9 +45,8 @@ const _port = parseInt(_env.PORT, 10);
 export const config = {
   port: _port,
   db_path: path.resolve(_env.DB_PATH ?? '.data/cs-ops.db'),
-  openclaw_base_url: _env.OPENCLAW_BASE_URL ?? 'http://localhost:18789',
-  ollama_url: _env.OLLAMA_URL,
-  ollama_api_key: _env.OLLAMA_API_KEY ?? 'ollama',
+  claude_cli_bin: _env.CLAUDE_CLI_BIN,
+  claude_cli_timeout_ms: parseInt(_env.CLAUDE_CLI_TIMEOUT_MS, 10),
   commerce_api_base_url: _env.COMMERCE_API_BASE_URL ?? `http://localhost:${_port}/commerce`,
   slack: {
     // CS_OPS_ prefix = cs-ops-core 전용 앱. SLACK_ fallback은 임시 단일 앱 사용 시
@@ -73,8 +71,7 @@ export function log_config_summary(): void {
   console.log('[config] cs-ops-core configuration:');
   console.log(`  port: ${config.port}`);
   console.log(`  db_path: ${path.relative(process.cwd(), config.db_path)}`);
-  console.log(`  openclaw_base_url: ${config.openclaw_base_url}`);
-  console.log(`  ollama_url: ${config.ollama_url}`);
+  console.log(`  claude_cli_bin: ${config.claude_cli_bin}`);
   if (config.slack.bot_token) {
     console.log(`  slack.bot_token: ${_mask(config.slack.bot_token)}`);
   } else {

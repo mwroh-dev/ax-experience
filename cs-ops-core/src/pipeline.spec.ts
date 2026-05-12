@@ -8,7 +8,6 @@ jest.mock('./classifier/ticket');
 jest.mock('./evidence/retriever');
 jest.mock('./draft/generator');
 jest.mock('./logging/automation-run');
-jest.mock('./lib/openclaw-client');
 jest.mock('./knowledge/db', () => ({
   get_kb: jest.fn().mockReturnValue({}),
   open_knowledge_db: jest.fn().mockReturnValue({}),
@@ -28,6 +27,10 @@ jest.mock('./lib/llm-judge', () => ({
     trace: [],
   }),
 }));
+jest.mock('./llm/claude-cli-draft-adapter', () => ({
+  claude_cli_draft_adapter: { generateDraft: jest.fn() },
+  claude_cli_summary_adapter: { keepSummary: jest.fn().mockResolvedValue({ summary: 'mock summary' }) },
+}));
 jest.mock('@slack/web-api', () => ({
   WebClient: jest.fn().mockImplementation(() => ({
     chat: {
@@ -41,7 +44,7 @@ import { normalize_ticket } from './classifier/ticket';
 import { retrieve_evidence } from './evidence/retriever';
 import { generate_draft } from './draft/generator';
 import { log_automation_run } from './logging/automation-run';
-import { call_cs_bot } from './lib/openclaw-client';
+import { claude_cli_summary_adapter } from './llm/claude-cli-draft-adapter';
 import { Ticket, EvidenceBundle, Draft } from './types';
 import { KB_FAST_PATH_REASON } from './pipeline';
 import * as knowledge_db_module from './knowledge/db';
@@ -50,7 +53,7 @@ const mock_normalize_ticket = normalize_ticket as jest.MockedFunction<typeof nor
 const mock_retrieve_evidence = retrieve_evidence as jest.MockedFunction<typeof retrieve_evidence>;
 const mock_generate_draft = generate_draft as jest.MockedFunction<typeof generate_draft>;
 const mock_log_automation_run = log_automation_run as jest.MockedFunction<typeof log_automation_run>;
-const mock_call_cs_bot = call_cs_bot as jest.MockedFunction<typeof call_cs_bot>;
+const mock_summary_llm = claude_cli_summary_adapter as jest.Mocked<typeof claude_cli_summary_adapter>;
 const mock_is_auto_safe = knowledge_db_module.is_auto_safe as jest.MockedFunction<typeof knowledge_db_module.is_auto_safe>;
 const mock_log_judge_decision = knowledge_db_module.log_judge_decision as jest.MockedFunction<typeof knowledge_db_module.log_judge_decision>;
 
@@ -260,14 +263,8 @@ describe('process_cs_message — review/hold path with keep_summary (AC 6)', () 
   });
 
   it('stores hold_summary when keep_summary succeeds', async () => {
-    mock_call_cs_bot.mockResolvedValue({
-      case_id: hold_ticket.ticket_id,
-      mode: 'keep_summary',
-      draft: 'Customer inquiry about delivery delay. Ticket placed on hold for agent review.',
-      evidence_used: [],
-      confidence: 'medium',
-      needs_more_info: false,
-      raw_llm_response: 'SUMMARY: Customer inquiry about delivery delay. CATEGORY: delivery URGENCY: low',
+    (mock_summary_llm.keepSummary as jest.Mock).mockResolvedValueOnce({
+      summary: 'Customer inquiry about delivery delay. Ticket placed on hold for agent review.',
     });
 
     const result = await process_cs_message('Where is my package?', '1700000000.000010');
@@ -286,7 +283,7 @@ describe('process_cs_message — review/hold path with keep_summary (AC 6)', () 
   });
 
   it('pipeline succeeds and hold_summary is undefined when keep_summary throws', async () => {
-    mock_call_cs_bot.mockRejectedValue(new Error('LLM timeout'));
+    (mock_summary_llm.keepSummary as jest.Mock).mockRejectedValueOnce(new Error('LLM timeout'));
 
     const result = await process_cs_message('Where is my package?', '1700000000.000011');
     // Pipeline should complete successfully despite keep_summary failure
@@ -312,8 +309,8 @@ describe('process_cs_message — review/hold path with keep_summary (AC 6)', () 
     });
 
     await process_cs_message('Delete all my data', '1700000000.000012');
-    // call_cs_bot should NOT be called on the escalate path
-    expect(mock_call_cs_bot).not.toHaveBeenCalled();
+    // claude_cli_summary_adapter.keepSummary should NOT be called on the escalate path
+    expect(mock_summary_llm.keepSummary).not.toHaveBeenCalled();
   });
 });
 
