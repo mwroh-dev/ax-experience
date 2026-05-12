@@ -1,7 +1,7 @@
 // api/src/llm/claude-cli-adapter.ts
-import { spawn } from 'child_process';
 import { z } from 'zod';
 import { config } from '../config';
+import { run_claude_cli, extract_inner_json } from '@cs-ops-core/llm/claude-cli-runner';
 
 export type CsBotMode = 'answer_draft' | 'keep_summary' | 'pending_investigation';
 
@@ -49,56 +49,11 @@ const DraftSchema = z.object({
   needs_more_info: z.boolean(),
 });
 
-async function run_claude_cli(args: string[], input: string): Promise<string> {
-  const bin = config.claude_cli_bin;
-  const timeout = config.claude_cli_timeout_ms;
-  // Strip Claude Code env vars so the subprocess uses OAuth, not API key
-  const child_env = { ...process.env };
-  delete child_env.CLAUDECODE;
-  delete child_env.CLAUDE_CODE_ENTRYPOINT;
-  delete child_env.CLAUDE_CODE_EXECPATH;
-  return new Promise((resolve, reject) => {
-    const proc = spawn(bin, args, { env: child_env });
-    let stdout = '';
-    let stderr = '';
-    const timer = setTimeout(() => { proc.kill(); reject(new Error(`claude CLI timed out after ${timeout}ms`)); }, timeout);
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timer);
-      if ((code ?? 1) !== 0) {
-        reject(new Error(`claude exited ${code}: ${stderr.slice(0, 200)}`));
-      } else {
-        resolve(stdout.trim());
-      }
-    });
-    proc.on('error', (e: Error) => { clearTimeout(timer); reject(e); });
-    proc.stdin.write(input, 'utf8');
-    proc.stdin.end();
-  });
-}
-
-function extract_inner_json(raw: string): unknown {
-  try {
-    const outer = JSON.parse(raw) as Record<string, unknown>;
-    if (typeof outer !== 'object' || outer === null) return outer;
-    if ('structured_output' in outer && outer.structured_output !== null) {
-      return outer.structured_output;
-    }
-    if ('result' in outer && typeof outer.result === 'string' && outer.result) {
-      return JSON.parse(outer.result);
-    }
-    return outer;
-  } catch {
-    throw new Error(`Failed to parse LLM output: ${raw.slice(0, 100)}`);
-  }
+function cli_opts(args: string[], input: string) {
+  return { bin: config.claude_cli_bin, timeout_ms: config.claude_cli_timeout_ms, args, input };
 }
 
 export async function call_cs_bot(req: CsBotRequest): Promise<CsBotResponse> {
-  if (process.env.MOCK_LLM_FAILURE === 'true') {
-    throw new Error('MOCK_LLM_FAILURE: simulated LLM unreachable');
-  }
-
   const context_parts: string[] = [];
   if (req.known_context?.source) context_parts.push(`Source: ${req.known_context.source}`);
   if (req.evidence_snippets?.length) context_parts.push(`Relevant context:\n${req.evidence_snippets.join('\n---\n')}`);
@@ -109,7 +64,7 @@ export async function call_cs_bot(req: CsBotRequest): Promise<CsBotResponse> {
 
   if (req.mode === 'answer_draft') {
     const args = ['-p', '--no-session-persistence', '--output-format', 'json', '--json-schema', DRAFT_SCHEMA, '--system-prompt', SYSTEM_PROMPTS.answer_draft];
-    const raw = await run_claude_cli(args, user_content);
+    const raw = await run_claude_cli(cli_opts(args, user_content));
     const inner = extract_inner_json(raw);
     const result = DraftSchema.safeParse(inner);
     if (!result.success) throw new Error(`Draft output validation failed: ${result.error.message}`);
@@ -126,7 +81,7 @@ export async function call_cs_bot(req: CsBotRequest): Promise<CsBotResponse> {
 
   // keep_summary / pending_investigation — plain text output
   const args = ['-p', '--no-session-persistence', '--system-prompt', SYSTEM_PROMPTS[req.mode]];
-  const summary = await run_claude_cli(args, user_content);
+  const summary = await run_claude_cli(cli_opts(args, user_content));
   return {
     case_id: req.case_id,
     mode: req.mode,

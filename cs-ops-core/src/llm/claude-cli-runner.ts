@@ -22,12 +22,14 @@ export async function run_claude_cli(opts: {
     const timer = setTimeout(() => { proc.kill(); reject(new Error(`claude CLI timed out after ${opts.timeout_ms}ms`)); }, opts.timeout_ms);
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('close', (code: number | null) => {
+    proc.on('close', (code: number | null, signal: string | null) => {
       clearTimeout(timer);
-      if ((code ?? 1) !== 0) reject(new Error(`claude exited ${code}: ${stderr.slice(0, 200)}`));
+      if (signal) reject(new Error(`claude was terminated by signal ${signal}`));
+      else if ((code ?? 1) !== 0) reject(new Error(`claude exited ${code}: ${stderr.slice(0, 200)}`));
       else resolve(stdout.trim());
     });
     proc.on('error', (e: Error) => { clearTimeout(timer); reject(e); });
+    proc.stdin.on('error', () => {}); // prevent unhandled EPIPE if process exits before stdin is consumed
     proc.stdin.write(opts.input, 'utf8');
     proc.stdin.end();
   });

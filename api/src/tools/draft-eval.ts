@@ -1,6 +1,6 @@
 // api/src/tools/draft-eval.ts
-import { spawn } from 'child_process';
 import { config } from '../config';
+import { run_claude_cli } from '@cs-ops-core/llm/claude-cli-runner';
 
 export interface DraftEvalResult {
   polite: boolean;
@@ -25,36 +25,15 @@ ACTIONABLE: true|false
 SCORE: 0.0 to 1.0
 ISSUES: <comma-separated issues, or "none">`;
 
-async function run_claude_eval(input: string): Promise<string> {
-  const bin = config.claude_cli_bin;
-  const timeout = Math.min(config.claude_cli_timeout_ms, 10_000);
-  // Strip Claude Code env vars so the subprocess uses OAuth, not API key
-  const child_env = { ...process.env };
-  delete child_env.CLAUDECODE;
-  delete child_env.CLAUDE_CODE_ENTRYPOINT;
-  delete child_env.CLAUDE_CODE_EXECPATH;
-  return new Promise((resolve, reject) => {
-    const proc = spawn(bin, ['-p', '--no-session-persistence', '--system-prompt', EVAL_SYSTEM_PROMPT], { env: child_env });
-    let stdout = '';
-    let stderr = '';
-    const timer = setTimeout(() => { proc.kill(); reject(new Error('eval timeout')); }, timeout);
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timer);
-      if ((code ?? 1) !== 0) reject(new Error(`eval exited ${code}: ${stderr.slice(0, 200)}`));
-      else resolve(stdout.trim());
-    });
-    proc.on('error', (e: Error) => { clearTimeout(timer); reject(e); });
-    proc.stdin.write(input, 'utf8');
-    proc.stdin.end();
-  });
-}
-
 export async function eval_draft(raw_text: string, draft: string): Promise<DraftEvalResult> {
   const input = `Customer inquiry:\n${raw_text.slice(0, 300)}\n\nDraft response:\n${draft.slice(0, 500)}`;
   try {
-    const raw = await run_claude_eval(input);
+    const raw = await run_claude_cli({
+      bin: config.claude_cli_bin,
+      timeout_ms: Math.min(config.claude_cli_timeout_ms, 10_000),
+      args: ['-p', '--no-session-persistence', '--system-prompt', EVAL_SYSTEM_PROMPT],
+      input,
+    });
     return parse_eval_response(raw);
   } catch {
     return fallback_pass();
