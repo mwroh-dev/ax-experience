@@ -9,8 +9,10 @@
  *   - openclaw running on :18789
  */
 import { chromium } from 'playwright';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
+
+mkdirSync('test-results', { recursive: true });
 import { fileURLToPath } from 'url';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -165,9 +167,9 @@ async function run() {
     } catch { /* ignore */ }
 
     await findAndClickButton(slackPage, caseId, 'Accept');
-    await slackPage.screenshot({ path: `/tmp/e2e-accept-${caseId}.png` });
+    await slackPage.screenshot({ path: `test-results/e2e-accept-${caseId}.png` });
     check('Step 3: Accept button clicked in Slack', true);
-    console.log(`  📸 /tmp/e2e-accept-${caseId}.png`);
+    console.log(`  📸 test-results/e2e-accept-${caseId}.png`);
   } catch (err) {
     check('Step 3: Accept button clicked in Slack', false);
     console.error(`  ERROR (Step 3): ${err.message}`);
@@ -276,10 +278,10 @@ async function run() {
       await slackPage.mouse.click(sendRect.x, sendRect.y);
 
       await slackPage.waitForTimeout(500);
-      await slackPage.screenshot({ path: `/tmp/e2e-send-${caseId}.png` });
+      await slackPage.screenshot({ path: `test-results/e2e-send-${caseId}.png` });
       check('Step 5: Send button clicked in Slack', true);
       console.log(`  🖱️  Clicked Send in thread`);
-      console.log(`  📸 /tmp/e2e-send-${caseId}.png`);
+      console.log(`  📸 test-results/e2e-send-${caseId}.png`);
     } catch (err) {
       check('Step 5: Send button clicked in Slack', false);
       console.error(`  ERROR (Step 5): ${err.message}`);
@@ -320,8 +322,8 @@ async function run() {
       });
       const inLog = logText.includes(caseId) || logText.includes(caseId.slice(0, 8));
       check(`Step 7: case_id visible in #voc-log`, inLog);
-      await slackPage.screenshot({ path: `/tmp/e2e-voclog-${caseId}.png` });
-      console.log(`  📸 /tmp/e2e-voclog-${caseId}.png`);
+      await slackPage.screenshot({ path: `test-results/e2e-voclog-${caseId}.png` });
+      console.log(`  📸 test-results/e2e-voclog-${caseId}.png`);
     } catch (err) {
       check('Step 7: case_id visible in #voc-log', false);
       console.error(`  ERROR (Step 7): ${err.message}`);
@@ -345,16 +347,16 @@ async function run() {
     await dashPage.waitForTimeout(2000);
     const casesText = await dashPage.evaluate(() => document.body.innerText);
     check('Step 8: Dashboard Cases tab — resolved case visible', casesText.includes(caseId) || casesText.includes(caseId.slice(0, 8)));
-    await dashPage.screenshot({ path: `/tmp/e2e-dashboard-cases-${caseId}.png` });
-    console.log(`  📸 /tmp/e2e-dashboard-cases-${caseId}.png`);
+    await dashPage.screenshot({ path: `test-results/e2e-dashboard-cases-${caseId}.png` });
+    console.log(`  📸 test-results/e2e-dashboard-cases-${caseId}.png`);
 
     // Automation Runs tab — navigate directly to the runs route
     await dashPage.goto('http://localhost:5173/runs', { waitUntil: 'networkidle', timeout: 15000 });
     await dashPage.waitForTimeout(2000);
     const runsText = await dashPage.evaluate(() => document.body.innerText);
     check('Step 9: Dashboard Automation Runs — classify visible', /classify/i.test(runsText));
-    await dashPage.screenshot({ path: `/tmp/e2e-dashboard-runs-${caseId}.png` });
-    console.log(`  📸 /tmp/e2e-dashboard-runs-${caseId}.png`);
+    await dashPage.screenshot({ path: `test-results/e2e-dashboard-runs-${caseId}.png` });
+    console.log(`  📸 test-results/e2e-dashboard-runs-${caseId}.png`);
 
     await dashBrowser.close();
   } catch (err) {

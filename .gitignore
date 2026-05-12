@@ -2,7 +2,11 @@
 .env
 *.env.local
 *.env.secret
-.env.*-pass
+.env.*
+!.env.example
+!api/.env.example
+!cs-ops-core/.env.example
+!e2e/.env.example
 
 # openclaw 런타임 데이터 (게이트웨이 토큰, 디바이스 페어링, 메모리 DB 등)
 /config/
@@ -58,6 +62,26 @@ docs/superpowers/
 .worktrees/
 docs/reference/
 test-results/
+
+# QA artifacts / screenshots
+*.png
+*.jpg
+*.jpeg
+*.webm
+*.log
+playwright-report/
+coverage/
+outputs/
+artifacts/
+
+# SQLite variants
+*.sqlite
+*.sqlite3
+
+# Local browser/session state
+.user-data-dir/
+.chrome-profile/
+.notion-profile/
 
 # Scheduler runtime state
 scheduler/.heartbeat

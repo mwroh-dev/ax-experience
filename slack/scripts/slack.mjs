@@ -19,6 +19,7 @@
  *   e2e-nosource
  */
 import { chromium } from 'playwright';
+import { mkdirSync } from 'fs';
 import {
   CDP_URL,
   SLACK_TEAM_ID,
@@ -26,6 +27,8 @@ import {
   SLACK_VOC_LOG_CHANNEL,
   GATEWAY_TOKEN,
 } from '../../scripts/env.mjs';
+
+mkdirSync('test-results', { recursive: true });
 
 const BASE = process.env.API_BASE || 'http://localhost:3100';
 const action = process.argv[2];
@@ -187,8 +190,8 @@ async function actionFullTest({ message = '환불 가능한가요?' }) {
     );
     const text = await page.locator('[data-qa="message_pane_main"] [data-qa="message_container"]').last().textContent();
     console.log('Bot response:', text?.slice(0, 500));
-    await page.screenshot({ path: '/tmp/slack-full-test.png' });
-    console.log('📸 /tmp/slack-full-test.png');
+    await page.screenshot({ path: 'test-results/slack-full-test.png' });
+    console.log('📸 test-results/slack-full-test.png');
   } finally { await browser.close(); }
 }
 
@@ -216,8 +219,8 @@ async function actionAccept(caseId) {
     await dismissBanner(page);
     await findAndClickButton(page, caseId, 'Accept');
     await page.waitForTimeout(10000);
-    await page.screenshot({ path: `/tmp/slack-accept-${caseId}.png` });
-    console.log(`📸 /tmp/slack-accept-${caseId}.png`);
+    await page.screenshot({ path: `test-results/slack-accept-${caseId}.png` });
+    console.log(`📸 test-results/slack-accept-${caseId}.png`);
   } finally { await browser.close(); }
 }
 
@@ -229,7 +232,7 @@ async function actionPending(caseId) {
     await dismissBanner(page);
     await findAndClickButton(page, caseId, 'Pending');
     await page.waitForTimeout(5000);
-    await page.screenshot({ path: `/tmp/slack-pending-${caseId}.png` });
+    await page.screenshot({ path: `test-results/slack-pending-${caseId}.png` });
   } finally { await browser.close(); }
 }
 
@@ -242,7 +245,7 @@ async function actionSendReply(caseId) {
     try { await findAndClickButton(page, caseId, 'Send'); }
     catch { await findAndClickButton(page, caseId, 'Auto Send'); }
     await page.waitForTimeout(5000);
-    await page.screenshot({ path: `/tmp/slack-send-${caseId}.png` });
+    await page.screenshot({ path: `test-results/slack-send-${caseId}.png` });
   } finally { await browser.close(); }
 }
 
@@ -256,7 +259,7 @@ async function actionVerifyThread(caseId) {
     await page.waitForTimeout(1500);
     const thread = await page.locator('[data-qa="threads_flexpane"]').textContent();
     console.log('Thread:\n', thread?.slice(0, 800));
-    await page.screenshot({ path: `/tmp/slack-thread-${caseId}.png` });
+    await page.screenshot({ path: `test-results/slack-thread-${caseId}.png` });
 
     await navigateToChannel(page, SLACK_VOC_LOG_CHANNEL);
     await page.waitForTimeout(1500);
@@ -296,7 +299,7 @@ async function actionE2eAccept() {
     await dismissBanner(page);
     await page.waitForTimeout(2000);
     await findAndClickButton(page, caseId, 'Accept');
-    await page.screenshot({ path: `/tmp/e2e-accept-${caseId}.png` });
+    await page.screenshot({ path: `test-results/e2e-accept-${caseId}.png` });
 
     const runs = await pollRuns(caseId, ['retrieve_evidence', 'commerce_lookup', 'draft_reply'], 35000);
     const draft = runs.find(r => r.run_type === 'draft_reply');

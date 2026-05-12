@@ -7,6 +7,9 @@
  * Actions: cases, automation-runs, health, knowledge, voc-report, all, e2e
  */
 import { chromium } from 'playwright';
+import { mkdirSync } from 'fs';
+
+mkdirSync('test-results', { recursive: true });
 
 const BASE = 'http://localhost:3100';
 const action = process.argv[2];
@@ -29,7 +32,7 @@ async function runCases(page) {
   });
   await page.waitForTimeout(2000);
 
-  await page.screenshot({ path: '/tmp/dashboard-cases.png' });
+  await page.screenshot({ path: 'test-results/dashboard-cases.png' });
   const bodyText = await page.evaluate(() => document.body.innerText);
 
   const caseRowCount = await page.evaluate(() => {
@@ -87,7 +90,7 @@ async function runAutomationRuns(page) {
   });
   await page.waitForTimeout(2000);
 
-  await page.screenshot({ path: '/tmp/dashboard-automation-runs.png' });
+  await page.screenshot({ path: 'test-results/dashboard-automation-runs.png' });
   const bodyText = await page.evaluate(() => document.body.innerText);
 
   const runRowCount = await page.evaluate(() => {
@@ -146,7 +149,7 @@ async function runHealth(page) {
   });
   await page.waitForTimeout(2000);
 
-  await page.screenshot({ path: '/tmp/dashboard-health.png' });
+  await page.screenshot({ path: 'test-results/dashboard-health.png' });
   const bodyText = await page.evaluate(() => document.body.innerText);
 
   const hasSlack   = /slack/i.test(bodyText);
@@ -200,7 +203,7 @@ async function runKnowledge(page) {
   });
   await page.waitForTimeout(2000);
 
-  await page.screenshot({ path: '/tmp/dashboard-knowledge.png' });
+  await page.screenshot({ path: 'test-results/dashboard-knowledge.png' });
   const bodyText = await page.evaluate(() => document.body.innerText);
 
   const hasSyncButton = await page.evaluate(() =>
@@ -265,7 +268,7 @@ async function runVocReport(page) {
   });
   await page.waitForTimeout(2500);
 
-  await page.screenshot({ path: '/tmp/dashboard-voc-report.png' });
+  await page.screenshot({ path: 'test-results/dashboard-voc-report.png' });
   const bodyText = await page.evaluate(() => document.body.innerText);
 
   const totalCases = await page.evaluate(() => {
@@ -415,7 +418,7 @@ async function runE2E() {
     const classifyInDom = /classify/i.test(runsText);
     check('Dashboard Automation Runs: classify run visible', classifyInDom);
 
-    await page.screenshot({ path: '/tmp/dashboard-e2e.png' });
+    await page.screenshot({ path: 'test-results/dashboard-e2e.png' });
     check('No browser console errors', ERRORS.length === 0);
   } finally {
     await browser.close();

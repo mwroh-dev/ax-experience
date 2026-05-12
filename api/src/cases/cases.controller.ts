@@ -29,7 +29,11 @@ export class CasesController {
     }
     const limit = parsed.data.limit ?? '50';
     const n = Math.min(parseInt(limit, 10) || 50, 200);
-    return { cases: list_cases(n) };
+    const cases = list_cases(n).map(({ raw_text, ...c }) => ({
+      ...c,
+      raw_preview: raw_text.length > 60 ? raw_text.slice(0, 60) + '…' : raw_text,
+    }));
+    return { cases };
   }
 
   @Post('api/cases')
