@@ -32,6 +32,23 @@ export function init_knowledge_tables(): void {
       content='knowledge_docs',
       content_rowid='rowid'
     );
+
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL DEFAULT 0,
+      content TEXT NOT NULL,
+      embedding BLOB,
+      indexed_at TEXT NOT NULL,
+      UNIQUE(source_id, chunk_index)
+    );
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunks_fts USING fts5(
+      source_id UNINDEXED,
+      content,
+      content='knowledge_chunks',
+      content_rowid='rowid'
+    );
   `);
 }
 

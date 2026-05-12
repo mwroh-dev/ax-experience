@@ -10,7 +10,7 @@ function make_proc(stdout: string, stderr: string, code: number) {
   const proc = new EventEmitter() as any;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
-  proc.stdin = { write: jest.fn((_d: any, _e: any, cb?: () => void) => { if (cb) cb(); }), end: jest.fn() };
+  proc.stdin = { write: jest.fn((_d: any, _e: any, cb?: () => void) => { if (cb) cb(); }), end: jest.fn(), on: jest.fn() };
   proc.kill = jest.fn();
   setImmediate(() => {
     if (stdout) proc.stdout.emit('data', Buffer.from(stdout));

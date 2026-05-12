@@ -106,38 +106,56 @@ export async function wait_for_message(ctx: BrowserContext, text: string, timeou
  * Throws if no reply button is found within the timeout.
  */
 export async function open_thread_for_case(ctx: BrowserContext, case_id: string, timeout = 20_000): Promise<void> {
-  const pages = ctx.pages();
-  for (const page of pages) {
-    const found = await page.waitForFunction(
-      (cid: string) => {
-        const items = document.querySelectorAll('li, [role="listitem"]');
-        return Array.from(items).some((el) => el.textContent?.includes(cid) && el.textContent?.includes('reply'));
-      },
-      case_id,
-      { timeout },
-    ).then(() => true).catch(() => false);
+  const pages = ctx.pages().filter((p) => p.url().includes('app.slack.com/client'));
+  const page = pages[0];
+  if (!page) throw new Error('No Slack app page found via CDP');
 
-    if (!found) continue;
-
-    const clicked = await page.evaluate((cid: string) => {
-      const items = document.querySelectorAll('li, [role="listitem"]');
+  // Wait for Slack to render a reply indicator ([data-qa="reply_bar"] or aria-label with "repl")
+  await page.waitForFunction(
+    (cid: string) => {
+      const items = document.querySelectorAll('li, [role="listitem"], [data-qa="virtual-list-item"]');
       for (const item of items) {
-        if (item.textContent?.includes(cid) && item.textContent?.includes('reply')) {
-          const buttons = item.querySelectorAll('button');
-          for (const btn of buttons) {
-            if (btn.textContent?.includes('reply') || btn.textContent?.includes('View thread')) {
-              (btn as HTMLElement).click();
-              return true;
-            }
-          }
+        if (!item.textContent?.includes(cid)) continue;
+        if (item.querySelector('[data-qa="reply_bar"]')) return true;
+        if (item.querySelector('[aria-label*="repl"], [aria-label*="thread"], [aria-label*="Thread"]')) return true;
+        const buttons = item.querySelectorAll('button');
+        for (const btn of buttons) {
+          const t = (btn.textContent ?? '').toLowerCase();
+          const l = (btn.getAttribute('aria-label') ?? '').toLowerCase();
+          if (t.includes('reply') || t.includes('thread') || l.includes('reply') || l.includes('thread')) return true;
         }
       }
       return false;
-    }, case_id).catch(() => false);
+    },
+    case_id,
+    { timeout },
+  );
 
-    if (clicked) return;
-  }
-  throw new Error(`Thread reply button not found for case_id: ${case_id}`);
+  const clicked = await page.evaluate((cid: string) => {
+    const items = document.querySelectorAll('li, [role="listitem"], [data-qa="virtual-list-item"]');
+    for (const item of items) {
+      if (!item.textContent?.includes(cid)) continue;
+
+      const replyBar = item.querySelector('[data-qa="reply_bar"]') as HTMLElement | null;
+      if (replyBar) { replyBar.click(); return true; }
+
+      const ariaEl = item.querySelector('[aria-label*="repl"], [aria-label*="thread"], [aria-label*="Thread"]') as HTMLElement | null;
+      if (ariaEl) { ariaEl.click(); return true; }
+
+      const buttons = item.querySelectorAll('button');
+      for (const btn of buttons) {
+        const t = (btn.textContent ?? '').toLowerCase();
+        const l = (btn.getAttribute('aria-label') ?? '').toLowerCase();
+        if (t.includes('reply') || t.includes('thread') || l.includes('reply') || l.includes('thread')) {
+          (btn as HTMLElement).click();
+          return true;
+        }
+      }
+    }
+    return false;
+  }, case_id).catch(() => false);
+
+  if (!clicked) throw new Error(`Thread reply button not found for case_id: ${case_id}`);
 }
 
 /**

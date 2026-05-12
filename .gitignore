@@ -55,6 +55,10 @@ backlog/
 # Stray seed files outside seeds/
 cs-ops-api/*.yaml
 
+# Ouroboros/task seed artifacts in seeds/ (knowledge-docs/ is tracked)
+seeds/*.yaml
+seeds/*.yml
+
 # Superpowers plans and specs (local only)
 docs/superpowers/
 

@@ -4,7 +4,8 @@
     "baseUrl": ".",
     "paths": {
       "@api/*": ["../api/src/*"],
-      "@notion/*": ["./src/*"]
+      "@notion/*": ["./src/*"],
+      "@cs-ops-core/*": ["../cs-ops-core/src/*"]
     }
   },
   "include": ["src/**/*"],
