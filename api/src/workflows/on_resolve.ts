@@ -20,7 +20,7 @@ export interface ResolveCtx {
 }
 
 const keep_summary_step: FlowStep<ResolveCtx> = {
-  name: 'openclaw_keep_summary',
+  name: 'claude_cli_keep_summary',
   run: async (ctx) => {
     const latest_draft = get_latest_draft(ctx.case_id);
     if (latest_draft) {

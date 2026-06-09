@@ -262,7 +262,7 @@ export function register_actions(app: App): void {
     const c = get_case(case_id);
     if (!c) return;
 
-    const tool_id = save_tool_call({ case_id, tool_name: 'openclaw_retry', input: { case_id, mode: 'answer_draft_retry' } });
+    const tool_id = save_tool_call({ case_id, tool_name: 'claude_cli_retry', input: { case_id, mode: 'answer_draft_retry' } });
 
     call_cs_bot({
       case_id, mode: 'answer_draft',
@@ -272,7 +272,7 @@ export function register_actions(app: App): void {
       const draft_text = bot_response.draft ?? '';
       const draft_v = save_draft_version(case_id, draft_text, bot_response.confidence, 'retry');
       update_tool_call(tool_id, bot_response, 'success');
-      add_event(case_id, 'cs_bot_draft_retry', 'bot', 'openclaw-client', {
+      add_event(case_id, 'cs_bot_draft_retry', 'bot', 'claude-cli', {
         version: draft_v.version, confidence: bot_response.confidence,
       });
 
@@ -286,7 +286,7 @@ export function register_actions(app: App): void {
       console.log(`[action] case_retry done | case_id=${case_id} version=${draft_v.version}`);
     }).catch(err => {
       update_tool_call(tool_id, { error: err.message }, 'error');
-      add_event(case_id, 'cs_bot_retry_failed', 'bot', 'openclaw-client', { error: err.message });
+      add_event(case_id, 'cs_bot_retry_failed', 'bot', 'claude-cli', { error: err.message });
       console.error(`[action] case_retry error:`, err.message);
     });
   });

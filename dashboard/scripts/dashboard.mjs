@@ -154,7 +154,7 @@ async function runHealth(page) {
 
   const hasSlack   = /slack/i.test(bodyText);
   const hasNotion  = /notion/i.test(bodyText);
-  const hasService = hasSlack || hasNotion || /commerce|sqlite|openclaw/i.test(bodyText);
+  const hasService = hasSlack || hasNotion || /commerce|sqlite/i.test(bodyText);
   const rawTokenVisible = /xoxb-\d{5,}/.test(bodyText);
 
   let apiHealthOk = false;

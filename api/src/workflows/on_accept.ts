@@ -43,7 +43,7 @@ export async function on_accept(
 ): Promise<{ draft: string; confidence: string }> {
   const tool_call_id = save_tool_call({
     case_id: c.id,
-    tool_name: 'openclaw_answer_draft',
+    tool_name: 'claude_cli_answer_draft',
     input: { case_id: c.id, mode: 'answer_draft', user_message: c.raw_text },
   });
 

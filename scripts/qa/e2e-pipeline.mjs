@@ -6,7 +6,7 @@
  *   - api running on :3100 (cd api && node dist/app.js)
  *   - Slack desktop app open with --remote-debugging-port=9222
  *   - Dashboard open at http://localhost:3100 or http://localhost:5173
- *   - openclaw running on :18789
+ *   - Claude CLI available (used as LLM adapter)
  */
 import { chromium } from 'playwright';
 import { readFileSync, mkdirSync } from 'fs';
@@ -146,7 +146,7 @@ async function run() {
   const postRuns = await pollRuns(caseId, ['classify', 'slack_post']);
   check('Step 2: classify + slack_post succeeded', !!postRuns);
   if (!postRuns) {
-    console.error('  TIMEOUT — openclaw or Slack not responding');
+    console.error('  TIMEOUT — LLM adapter or Slack not responding');
     return false;
   }
 

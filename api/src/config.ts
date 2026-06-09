@@ -1,5 +1,6 @@
 import path from 'path';
 import { z } from 'zod';
+import { resolve_data_path } from '@cs-ops-core/lib/data-dir';
 
 const EnvSchema = z.object({
   PORT: z.string().default('3100'),
@@ -46,7 +47,7 @@ const _port = parseInt(_env.PORT, 10);
 
 export const config = {
   port: _port,
-  db_path: path.resolve(_env.DB_PATH ?? '.data/cs-ops.db'),
+  db_path: _env.DB_PATH ? path.resolve(_env.DB_PATH) : resolve_data_path('cs-ops.db'),
   claude_cli_bin: _env.CLAUDE_CLI_BIN,
   claude_cli_timeout_ms: parseInt(_env.CLAUDE_CLI_TIMEOUT_MS, 10),
   commerce_api_base_url: _env.COMMERCE_API_BASE_URL ?? `http://localhost:${_port}/commerce`,

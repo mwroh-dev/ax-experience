@@ -25,9 +25,10 @@ package-lock.json
 # macOS
 .DS_Store
 
+# Canonical local data dir (all SQLite DBs live here — see cs-ops-core/src/lib/data-dir.ts)
+.data/
+
 # api
-api/.data/
-api/cs_ops.db
 api/.env
 api/dist/
 

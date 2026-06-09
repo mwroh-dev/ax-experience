@@ -5,7 +5,7 @@
  * node scripts/notion.mjs <action> [args]
  *
  * Actions:
- *   sync [--target sysprompt|workspace|both] [--category refund]
+ *   sync [--target workspace] [--category refund]
  *   seed
  *   cleanup
  *   verify-backlog <case_id>
@@ -90,13 +90,10 @@ async function notionRequest(method, reqPath, body) {
 
 // ── Action: sync ──────────────────────────────────────────────────────────────
 
-const SYSPROMPT_START = '<!-- NOTION_SYSPROMPT_START -->';
-const SYSPROMPT_END   = '<!-- NOTION_SYSPROMPT_END -->';
-const CONTEXT_START   = '<!-- NOTION_CONTEXT_START -->';
-const CONTEXT_END     = '<!-- NOTION_CONTEXT_END -->';
+const CONTEXT_START = '<!-- NOTION_CONTEXT_START -->';
+const CONTEXT_END   = '<!-- NOTION_CONTEXT_END -->';
 
-const CONFIG_PATH = join(__dirname, '..', 'config', 'openclaw.json');
-const AGENTS_MD   = join(__dirname, '..', 'workspace', 'AGENTS.md');
+const AGENTS_MD = join(__dirname, '..', 'workspace', 'AGENTS.md');
 
 async function notionSearch(category) {
   let cursor;
@@ -120,37 +117,6 @@ async function notionSearch(category) {
   return null;
 }
 
-function buildSysprompt(item) {
-  const fetchedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-  return (
-    `${SYSPROMPT_START}\n` +
-    `You are a Korean CS assistant. Answer ONLY in Korean. ` +
-    `Use ONLY the following NOTION_CONTEXT to answer. Do not add any other information.\n\n` +
-    `NOTION_CONTEXT (fetched ${fetchedAt}):\n` +
-    `question: ${item.question}\n` +
-    `answer: ${item.answer}\n` +
-    `${SYSPROMPT_END}`
-  );
-}
-
-function injectSysprompt(sysprompt) {
-  const CHANNEL_ID = process.env.SLACK_VOC_INBOX_ID ?? '';
-  const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-  const channel = config.channels.slack.channels[CHANNEL_ID];
-  if (!channel) throw new Error(`Channel ${CHANNEL_ID} not found in ${CONFIG_PATH}`);
-  const existing = channel.systemPrompt ?? '';
-
-  if (existing.includes(SYSPROMPT_START) && existing.includes(SYSPROMPT_END)) {
-    const before = existing.slice(0, existing.indexOf(SYSPROMPT_START));
-    const after  = existing.slice(existing.indexOf(SYSPROMPT_END) + SYSPROMPT_END.length);
-    channel.systemPrompt = before + sysprompt + after;
-  } else {
-    channel.systemPrompt = sysprompt;
-  }
-
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
-  console.log(`  → injected into ${CONFIG_PATH} (channel ${CHANNEL_ID})`);
-}
 
 function buildWorkspaceBlock(item) {
   const fetchedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -183,7 +149,6 @@ function injectWorkspace(block) {
 }
 
 async function actionSync(opts) {
-  const target   = opts.target ?? 'sysprompt';
   const category = opts.category ?? 'refund';
 
   console.log(`Fetching Notion FAQ (category=${category})...`);
@@ -196,16 +161,8 @@ async function actionSync(opts) {
   console.log(`Found: [${item.category}] ${item.question}`);
   console.log(`Answer: ${item.answer.slice(0, 80)}...`);
 
-  if (target === 'sysprompt' || target === 'both') {
-    console.log('\nTarget: sysprompt');
-    injectSysprompt(buildSysprompt(item));
-  }
-  if (target === 'workspace' || target === 'both') {
-    console.log('\nTarget: workspace');
-    injectWorkspace(buildWorkspaceBlock(item));
-  }
-
-  console.log('\nDone. Gateway will hot-reload config automatically.');
+  injectWorkspace(buildWorkspaceBlock(item));
+  console.log('\nDone.');
 }
 
 // ── Action: seed ──────────────────────────────────────────────────────────────

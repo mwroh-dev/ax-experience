@@ -41,7 +41,6 @@ export interface SearchResult {
 export interface HealthDeps {
   slack: { configured?: boolean; token_prefix?: string; status?: string };
   notion: { configured?: boolean; status?: string };
-  openclaw: { live?: boolean; latency_ms?: number; error?: string };
   commerce_api: { live?: boolean; latency_ms?: number; error?: string };
   sqlite: { ready?: boolean; path?: string };
 }
