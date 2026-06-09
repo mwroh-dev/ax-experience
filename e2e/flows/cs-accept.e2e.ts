@@ -38,8 +38,8 @@ test.describe('CS Accept Flow', () => {
     expect(c.status).toBe('accepted');
 
     // Spec step 5: if needs_more_info=true, assert improvement_backlog entry exists.
-    // The E2E layer cannot seed openclaw responses, so needs_more_info value is unknown.
-    // This assertion is deferred to integration tests where openclaw can be mocked.
+    // The E2E layer cannot seed LLM responses, so needs_more_info value is unknown.
+    // This assertion is deferred to integration tests where the LLM adapter can be mocked.
     // Available fixture: e2e/fixtures/notion-verify.ts → find_improvement_backlog_entry(case_id)
   });
 });

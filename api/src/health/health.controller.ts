@@ -25,8 +25,7 @@ export class HealthController {
         return { live: false, error: e.cause?.code ?? e.message ?? 'UNKNOWN' };
       }
     }
-    const [openclaw, commerce_api] = await Promise.all([
-      ping(`${this.cfg.openclaw_base_url}/healthz`),
+    const [commerce_api] = await Promise.all([
       ping(`${process.env.COMMERCE_API_BASE_URL ?? 'http://localhost:3101'}/health`),
     ]);
     let sqlite_ready = false;
@@ -34,7 +33,6 @@ export class HealthController {
     return {
       slack: { configured: !!this.cfg.slack.bot_token, status: this.cfg.slack.bot_token ? 'valid' : 'not_configured' },
       notion: { configured: !!this.cfg.notion.token, status: this.cfg.notion.token ? 'valid' : 'not_configured' },
-      openclaw,
       commerce_api,
       sqlite: { ready: sqlite_ready, path: '[LOCAL_PATH]' },
     };

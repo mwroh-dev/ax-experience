@@ -21,8 +21,6 @@ function parseEnv() {
 
 const e = parseEnv();
 
-export const GATEWAY_TOKEN           = e.OPENCLAW_GATEWAY_TOKEN     ?? '';
-export const GATEWAY_URL             = e.OPENCLAW_GATEWAY_URL       ?? 'http://localhost:18789';
 export const CDP_URL                 = e.CDP_URL                    ?? 'http://localhost:9222';
 export const SLACK_TEAM_ID           = e.SLACK_TEAM_ID              ?? '';
 export const SLACK_CHANNEL_ID        = e.SLACK_VOC_INBOX_ID         ?? '';

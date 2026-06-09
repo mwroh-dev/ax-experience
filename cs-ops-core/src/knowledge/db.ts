@@ -1,6 +1,7 @@
 // cs-ops-core/src/knowledge/db.ts
 import Database from 'better-sqlite3';
 import path from 'path';
+import { resolve_data_path } from '../lib/data-dir';
 import { RiskLevel, CustomerIntent, OrderState } from '../types';
 
 export interface AutoSafePattern {
@@ -130,13 +131,9 @@ export function close_kb(): void {
 process.on('exit', close_kb);
 
 export function open_knowledge_db(db_path?: string): Database.Database {
-  const resolved = db_path ?? process.env.KNOWLEDGE_DB_PATH ?? path.join(process.cwd(), 'knowledge.db');
-  if (!db_path && !process.env.KNOWLEDGE_DB_PATH) {
-    console.warn(
-      `[knowledge-db] No explicit path — resolved to: ${resolved}. ` +
-      'Set KNOWLEDGE_DB_PATH explicitly in production to avoid path drift.'
-    );
-  }
+  // Default anchors to <repo-root>/.data/knowledge.db (see lib/data-dir), so the
+  // path no longer drifts with process.cwd(). Override: arg > KNOWLEDGE_DB_PATH > default.
+  const resolved = db_path ?? process.env.KNOWLEDGE_DB_PATH ?? resolve_data_path('knowledge.db');
   const db = new Database(resolved);
   db.exec('PRAGMA journal_mode=WAL;');
   db.exec(SCHEMA);
