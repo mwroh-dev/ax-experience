@@ -206,12 +206,12 @@ describe('knowledge db', () => {
       warn_spy.mockRestore();
     });
 
-    it('warns when called with no arguments and KNOWLEDGE_DB_PATH is unset', () => {
+    it('does not warn when called with no arguments and KNOWLEDGE_DB_PATH is unset', () => {
       delete process.env.KNOWLEDGE_DB_PATH;
       const warn_spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      // Without db_path and without env var, the function falls back to cwd and warns
-      try { open_knowledge_db(); } catch { /* cwd path may not be writable */ }
-      expect(warn_spy).toHaveBeenCalledWith(
+      // No arg and no env var → falls back to root-anchored default (no warning needed)
+      try { open_knowledge_db(); } catch { /* DB dir may not be writable in this env */ }
+      expect(warn_spy).not.toHaveBeenCalledWith(
         expect.stringContaining('[knowledge-db] No explicit path')
       );
       warn_spy.mockRestore();
